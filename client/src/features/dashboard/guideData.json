@@ -1,0 +1,47 @@
+[
+  {
+    "step": 1,
+    "title": "Share your error",
+    "subtitle": "Easy log submission",
+    "description": "Just copy and paste your error message or code. BugSense cleans up the mess and finds the real problem for you.",
+    "image": "/media/processed/HomePage_Annotated.png",
+    "tips": "Try pasting the whole terminal output—it's okay if it's messy!",
+    "marker": "Paste your code here to start."
+  },
+  {
+    "step": 2,
+    "title": "AI checks the code",
+    "subtitle": "Fast analysis",
+    "description": "Our AI (Gemma 3) reads your error and explains exactly what's going wrong in plain English.",
+    "image": "/media/processed/ChatPage_Annotated.png",
+    "tips": "Wait a few seconds for the AI to finish thinking.",
+    "marker": "The AI is now reading your error."
+  },
+  {
+    "step": 3,
+    "title": "Get the fix",
+    "subtitle": "Helpful breakdown",
+    "description": "Instead of just code, you'll get a simple explanation of why the error happened and how to fix it forever.",
+    "image": "/media/processed/AI_Response_Annotated.png",
+    "tips": "Ask 'Why?' to learn how to avoid this bug next time.",
+    "marker": "Follow these steps to solve the bug."
+  },
+  {
+    "step": 4,
+    "title": "Confirm it's fixed",
+    "subtitle": "Save your solution",
+    "description": "Once you've fixed the bug, write a short note about it. This helps you remember the solution later.",
+    "image": "/media/processed/MarkFix_Annotated.png",
+    "tips": "You can share your fix to help other developers too.",
+    "marker": "Save your fix here."
+  },
+  {
+    "step": 5,
+    "title": "Grow your library",
+    "subtitle": "All fixes in one place",
+    "description": "Every fix you save is turned into a beautiful guide in your personal library. Searchable and always ready.",
+    "image": "/media/processed/Publishing_Annotated.png",
+    "tips": "Use the search bar to find old fixes in seconds.",
+    "marker": "Your new fix is now in the library."
+  }
+]
