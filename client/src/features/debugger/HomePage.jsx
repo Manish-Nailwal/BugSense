@@ -6,7 +6,7 @@ import ErrorInput from "./ErrorInput";
 
 const HomePage = () => {
   const navigate = useNavigate();
-  const { sessionId, messages, resetSession } = useDebugStore();
+  const { sessionId, messages, resetSession, setErrorInput } = useDebugStore();
 
   useEffect(() => {
     if (sessionId || messages.length > 0) {
@@ -21,10 +21,22 @@ const HomePage = () => {
   }, [sessionId, messages, navigate]);
 
   const sampleQueries = [
-    "React hook dependency error",
-    "Java NullPointerException",
-    "Node.js MODULE_NOT_FOUND",
-    "Python list index out of range"
+    {
+      title: "React Property Error",
+      error: "TypeError: Cannot read properties of undefined (reading 'map')\n    at Dashboard.jsx:125:44\n    at renderWithHooks (react-dom.development.js:16305:18)\n    at updateFunctionComponent (react-dom.development.js:19588:15)"
+    },
+    {
+      title: "Reference Error",
+      error: "ReferenceError: client is not defined\n    at App.js:45:12\n    at dispatch (redux.js:234:10)\n    at onClick (NavBar.jsx:89:5)"
+    },
+    {
+      title: "Dependency Cycle",
+      error: "Dependency Cycle Detected:\n  context.js -> hooks.js -> services.js -> context.js\n  This may cause unexpected behavior and state synchronization issues."
+    },
+    {
+      title: "Auth Failure (401)",
+      error: "Uncaught (in promise) Error: Request failed with status code 401\n    at createError (axios.js:1022:15)\n    at settle (axios.js:1112:12)\n    at XMLHttpRequest.handleLoad (axios.js:1456:10)"
+    }
   ];
 
   return (
@@ -66,12 +78,13 @@ const HomePage = () => {
           
           <div className="flex flex-wrap items-center justify-center gap-2">
              <span className="w-full text-center text-[9px] font-black text-zinc-400 uppercase tracking-[0.3em] mb-2">Try pasting a sample:</span>
-             {sampleQueries.map((query, idx) => (
+             {sampleQueries.map((item, idx) => (
                <button 
                  key={idx}
+                 onClick={() => setErrorInput(item.error)}
                  className="px-4 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 text-[10px] font-bold text-zinc-500 hover:text-emerald-500 hover:border-emerald-500/40 transition-all active:scale-95"
                >
-                 {query}
+                 {item.title}
                </button>
              ))}
           </div>
