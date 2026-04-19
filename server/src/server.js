@@ -1,6 +1,8 @@
 import app from './app.js';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
+import https from 'https';
+import http from 'http';
 
 dotenv.config();
 
@@ -18,6 +20,20 @@ const startServer = async () => {
 
     const server = app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
+      
+      // Keep-Alive (Self-Ping)
+      const url = process.env.SERVER_URL;
+      if (url) {
+        console.log(`📡 Keep-Alive initialized for: ${url}`);
+        setInterval(() => {
+          const protocol = url.startsWith('https') ? https : http;
+          protocol.get(url, (res) => {
+            console.log(`[Keep-Alive] Status: ${res.statusCode}`);
+          }).on('error', (err) => {
+            console.error(`[Keep-Alive] Error: ${err.message}`);
+          });
+        }, 14 * 60 * 1000); // 14 Minutes
+      }
     });
 
     // Handle process-level crashes
