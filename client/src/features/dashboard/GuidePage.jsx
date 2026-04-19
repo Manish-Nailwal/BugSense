@@ -16,9 +16,14 @@ import {
   Zap,
 } from "lucide-react";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 import guideData from "./guideData.json";
-
+import useAuthStore from "../../store/authStore";
+import useDebugStore from "../../store/debugStore";
 const GuidePage = () => {
+  const { user } = useAuthStore();
+  const { setErrorInput } = useDebugStore();
+  const navigate = useNavigate();
   const [activeStep, setActiveStep] = useState(0);
   const [roadmapFocus, setRoadmapFocus] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -50,21 +55,18 @@ const GuidePage = () => {
     return () => observer.disconnect();
   }, []);
 
-  const handleGenerateRoadmap = async () => {
+  const handleGenerateRoadmap = () => {
     if (!roadmapFocus) return;
-    setIsGenerating(true);
-    try {
-      const response = await axios.post("/api/analytics/report", {
-        selectedModel: "Gemma 3 12B",
-        focus: roadmapFocus,
-        isRoadmap: true,
-      });
-      setGeneratedRoadmap(response.data.data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsGenerating(false);
+
+    if (!user) {
+      navigate("/auth/login");
+      return;
     }
+
+    // Set the input in store so it appears in the chat/debugger
+    setErrorInput(roadmapFocus);
+    // Navigate to the resolution engine (Home/Dashboard)
+    navigate("/");
   };
 
   return (
@@ -338,15 +340,11 @@ const GuidePage = () => {
               </div>
               <button
                 onClick={handleGenerateRoadmap}
-                disabled={isGenerating || !roadmapFocus}
+                disabled={!roadmapFocus}
                 className="sm:px-8 py-4 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:hover:bg-emerald-500 text-zinc-950 font-black uppercase tracking-widest text-xs rounded-[18px] transition-all flex items-center justify-center gap-2 active:scale-95"
               >
-                {isGenerating ? (
-                  <Loader2 className="animate-spin" size={16} />
-                ) : (
-                  <Zap size={16} fill="currentColor" />
-                )}
-                <span>{isGenerating ? "Analyzing..." : "Generate"}</span>
+                <Zap size={16} fill="currentColor" />
+                <span>Generate</span>
               </button>
             </div>
           </div>

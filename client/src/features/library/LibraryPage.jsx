@@ -23,6 +23,14 @@ const LibraryPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTag, setActiveTag] = useState("");
 
+  // Live search debouncing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchArticles(1, { q: searchTerm, tag: activeTag });
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm, activeTag, fetchArticles]);
+
   useEffect(() => {
     fetchArticles();
     fetchTags();
@@ -229,8 +237,8 @@ const LibraryPage = () => {
                 </motion.div>
               ) : (
                 <div className="space-y-20">
-                  <motion.div
-                    key={activeTag + searchTerm}
+                   <motion.div
+                    key={`${activeTag}-${articles.length}-${isLoading}`}
                     initial={{ opacity: 0, scale: 0.98 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}

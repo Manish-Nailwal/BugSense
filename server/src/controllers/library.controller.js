@@ -15,7 +15,11 @@ export const getArticles = async (req, res, next) => {
     }
 
     if (q) {
-      query.$text = { $search: q };
+      query.$or = [
+        { title: { $regex: q, $options: "i" } },
+        { tags: { $regex: q, $options: "i" } },
+        { metaDescription: { $regex: q, $options: "i" } }
+      ];
     }
 
     const articles = await LibraryArticle.find(query)
