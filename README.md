@@ -74,7 +74,7 @@ Beautifully synthesized articles that capture the "Why" behind every fixed bug.
 1. **Clone the Project**
 
    ```bash
-   git clone <your-repo-url>
+   git clone https://github.com/Manish-Nailwal/BugSense.git
    cd "Bug Sense"
    ```
 
