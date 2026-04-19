@@ -14,7 +14,7 @@ export const analyzeError = async (req, res) => {
     errorLog,
     history,
     sessionId,
-    selectedModel: rawModel = "Gemini 2.5 Flash",
+    selectedModel: rawModel = "Gemma 3 12B",
   } = req.body;
   const selectedModel = rawModel.replace(/\./g, "_");
 
@@ -40,7 +40,7 @@ export const analyzeError = async (req, res) => {
     );
 
     const currentCount = quota.counts.get(selectedModel) || 0;
-    const modelLimit = rawModel.startsWith("Gemma") ? 14000 : 20;
+    const modelLimit = rawModel.toLowerCase().startsWith("gemma") ? 14000 : 20;
 
     if (currentCount >= modelLimit) {
       return res.status(429).json({
@@ -181,7 +181,7 @@ export const getSession = async (req, res) => {
 // @access  Private
 export const confirmFix = async (req, res, next) => {
   try {
-    const { userNote, selectedModel: rawModel = "Gemini 2.5 Flash", shouldPublish = true } = req.body;
+    const { userNote, selectedModel: rawModel = "Gemma 3 12B", shouldPublish = true } = req.body;
     const { id: sessionId } = req.params;
     const selectedModel = rawModel.replace(/\./g, "_");
 
@@ -223,7 +223,7 @@ export const confirmFix = async (req, res, next) => {
       );
 
       const currentCount = quota.counts.get(selectedModel) || 0;
-      const modelLimit = rawModel.startsWith("Gemma") ? 14000 : 20;
+      const modelLimit = rawModel.toLowerCase().startsWith("gemma") ? 14000 : 20;
 
       if (currentCount >= modelLimit) {
         return res.status(429).json({

@@ -13,8 +13,8 @@ const useDebugStore = create((set, get) => ({
   metadata: null,
   error: null,
   isConfirmModalOpen: false,
-  selectedModel: localStorage.getItem('lastModel') || 'Gemini 2.5 Flash',
-  quotaCounts: { 'Gemini 3 Flash': 0, 'Gemini 2.5 Flash': 0 },
+  selectedModel: localStorage.getItem('lastModel') || 'Gemma 3 12B',
+  quotaCounts: { 'Gemini 3 Flash': 0, 'Gemini 2.5 Flash': 0, 'Gemma 3 4B': 0, 'Gemma 3 12B': 0 },
 
   setErrorInput: (val) => set({ errorInput: val }),
   setConfirmModalOpen: (isOpen) => set({ isConfirmModalOpen: isOpen }),

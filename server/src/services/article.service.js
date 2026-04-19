@@ -50,7 +50,7 @@ This ensures that the **State Transition** is idempotent.
 /**
  * Generates an SEO-optimized markdown article based on a resolved debug session
  */
-export const generateArticle = async (rawError, aiAnalysis, userNote, category, selectedModel = 'Gemini 2.5 Flash', messages = []) => {
+export const generateArticle = async (rawError, aiAnalysis, userNote, category, selectedModel = 'Gemma 3 12B', messages = []) => {
   if (process.env.NODE_ENV === 'development' || process.env.MOCK_AI === 'true') {
     return mockGenerateArticle(rawError, aiAnalysis, userNote, category);
   }
@@ -93,7 +93,7 @@ export const generateArticle = async (rawError, aiAnalysis, userNote, category, 
   `;
 
   try {
-    const modelId = MODEL_MAPPING[selectedModel] || MODEL_MAPPING['Gemini 2.5 Flash'];
+    const modelId = MODEL_MAPPING[selectedModel] || MODEL_MAPPING['Gemma 3 12B'];
     const model = genAI.getGenerativeModel({ model: modelId });
     const result = await model.generateContent(prompt);
     const fullContent = result.response.text();

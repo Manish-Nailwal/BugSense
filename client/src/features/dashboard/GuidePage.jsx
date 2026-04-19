@@ -119,7 +119,7 @@ const GuidePage = () => {
               <div className="flex items-center gap-3">
                 <div className="w-12 h-0.5 bg-emerald-500" />
                 <span className="text-[11px] font-black uppercase tracking-[0.5em] text-emerald-500">
-                  Operations Protocol // v3.0
+                  How to use Bug Sense // The Guide
                 </span>
               </div>
 
@@ -129,8 +129,8 @@ const GuidePage = () => {
               </h1>
 
               <p className="text-xl md:text-2xl text-zinc-500 dark:text-zinc-400 font-medium max-w-xl leading-relaxed">
-                A high-fidelity guide to navigating the BugSense diagnostic
-                environment and rapid resolution engine.
+                A simple guide to using Bug Sense for finding and fixing bugs
+                quickly and effectively.
               </p>
             </div>
 
@@ -200,10 +200,10 @@ const GuidePage = () => {
               {/* Floating Technical Specs Indicators */}
               <div className="absolute -top-6 -right-6 p-4 rounded-2xl bg-zinc-950/80 backdrop-blur-xl border border-white/10 shadow-2xl space-y-1">
                 <div className="text-[8px] font-black uppercase tracking-widest text-emerald-500">
-                  Latency
+                  Response Speed
                 </div>
                 <div className="text-xs font-mono font-bold text-white">
-                  0.02ms
+                  Ultra Fast
                 </div>
               </div>
               <div className="absolute -bottom-10 -left-10 p-6 rounded-[30px] bg-zinc-950/80 backdrop-blur-xl border border-white/10 shadow-2xl flex items-center gap-4">
@@ -212,10 +212,10 @@ const GuidePage = () => {
                 </div>
                 <div>
                   <div className="text-[8px] font-black uppercase tracking-widest text-zinc-500">
-                    System Accuracy
+                    Fix Accuracy
                   </div>
                   <div className="text-sm font-black italic text-white uppercase tracking-tighter">
-                    99.8% Veracity
+                    99.8% Success Rate
                   </div>
                 </div>
               </div>
@@ -223,16 +223,7 @@ const GuidePage = () => {
           </motion.div>
         </div>
 
-        <motion.div
-          animate={{ y: [0, 8, 0], opacity: [0.4, 1, 0.4] }}
-          transition={{ duration: 3, repeat: Infinity }}
-          className="absolute bottom-12 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2"
-        >
-          <div className="text-[9px] font-black uppercase tracking-[0.6em] text-zinc-400">
-            Initialize Guide
-          </div>
-          <div className="w-px h-12 bg-gradient-to-b from-emerald-500 to-transparent" />
-        </motion.div>
+
       </section>
 
       {/* Guide Stages - Alternating Layout Redesign */}
@@ -258,7 +249,7 @@ const GuidePage = () => {
                     {step.step}
                   </div>
                   <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
-                    Process Phase // {step.subtitle}
+                    Current Step // {step.subtitle}
                   </span>
                 </div>
 
@@ -320,7 +311,7 @@ const GuidePage = () => {
             <div className="flex items-center justify-center gap-2 text-emerald-400 opacity-80 mb-2">
               <Cpu size={16} />
               <span className="text-[10px] font-black uppercase tracking-[0.4em] ">
-                Neural Roadmap
+                AI Fix Plan
               </span>
             </div>
             <h2 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter leading-none">
@@ -328,7 +319,7 @@ const GuidePage = () => {
             </h2>
             <p className="text-zinc-400 text-base font-medium max-w-md mx-auto leading-relaxed">
               Describe your error or topic to generate a custom step-by-step
-              resolution roadmap.
+              resolution plan.
             </p>
           </div>
 
@@ -376,7 +367,7 @@ const GuidePage = () => {
                           <Cpu size={20} />
                         </div>
                         <h3 className="text-sm font-black uppercase italic tracking-wider text-emerald-500">
-                          Generated Roadmap // {roadmapFocus}
+                          Custom Fix Plan // {roadmapFocus}
                         </h3>
                       </div>
                       <button

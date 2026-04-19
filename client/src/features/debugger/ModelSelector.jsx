@@ -22,7 +22,7 @@ const ModelSelector = ({ className = "", position = "down" }) => {
   };
 
   const currentCount = quotaCounts[selectedModel] || 0;
-  const currentLimit = selectedModel.startsWith("Gemma") ? 14000 : 20;
+  const currentLimit = selectedModel.toLowerCase().startsWith("gemma") ? 14000 : 20;
 
   return (
     <div className={`relative ${className}`}>
@@ -35,7 +35,7 @@ const ModelSelector = ({ className = "", position = "down" }) => {
         </span>
         <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded-md bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
           <span
-            className={`text-[8px] font-black tabular-nums ${currentCount >= 20 ? "text-rose-500" : "text-zinc-500"}`}
+            className={`text-[8px] font-black tabular-nums ${currentCount >= currentLimit ? "text-rose-500" : "text-zinc-500"}`}
           >
             {currentCount}/{currentLimit}
           </span>
@@ -58,7 +58,7 @@ const ModelSelector = ({ className = "", position = "down" }) => {
             <div className="p-1.5 space-y-1">
               {models.map((model) => {
                 const count = quotaCounts[model] || 0;
-                const limit = model.startsWith("Gemma") ? 14000 : 20;
+                const limit = model.toLowerCase().startsWith("gemma") ? 14000 : 20;
                 const isLimitReached = count >= limit;
 
                 return (
@@ -84,7 +84,7 @@ const ModelSelector = ({ className = "", position = "down" }) => {
                       <span
                         className={`text-[8px] font-bold ${isLimitReached ? "text-rose-500" : "text-zinc-400 dark:text-zinc-600"}`}
                       >
-                        {count}/{model.startsWith("Gemma") ? "14000" : "20"} REQUESTS USED
+                        {count}/{model.toLowerCase().startsWith("gemma") ? "14000" : "20"} REQUESTS USED
                       </span>
                     </div>
                     {selectedModel === model && !isLimitReached && (

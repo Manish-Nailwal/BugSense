@@ -11,13 +11,13 @@ export const streamDebugAnalysis = async (
   errorLog,
   res,
   history = [],
-  selectedModel = "Gemini 2.5 Flash",
+  selectedModel = "Gemma 3 12B",
 ) => {
   const isFollowUp = history.length > 0;
 
   // Resolve the actual model ID from mapping
   const modelId =
-    MODEL_MAPPING[selectedModel] || MODEL_MAPPING["Gemini 2.5 Flash"];
+    MODEL_MAPPING[selectedModel] || MODEL_MAPPING["Gemma 3 12B"];
   const model = genAI.getGenerativeModel({ model: modelId });
 
   let prompt = "";

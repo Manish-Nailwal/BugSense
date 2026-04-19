@@ -11,7 +11,7 @@ import ReactMarkdown from 'react-markdown';
 import ModelSelector from '../debugger/ModelSelector';
 import { useNavigate } from 'react-router-dom';
 
-const QUOTA_LIMIT = 20;
+// We now handle dynamic limits based on the model name in the component logic
 
 const NeuralReportModal = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
@@ -30,10 +30,11 @@ const NeuralReportModal = ({ isOpen, onClose }) => {
 
   // Server returns keys with dots (e.g. "Gemini 2.5 Flash") — use model name directly
   const modelKey = selectedModel;
+  const effectiveLimit = selectedModel.toLowerCase().startsWith("gemma") ? 14000 : 20;
   const modelUsed = quotaCounts?.[modelKey] ?? 0;
-  const quotaPercent = Math.min((modelUsed / QUOTA_LIMIT) * 100, 100);
-  const quotaColor = modelUsed >= QUOTA_LIMIT ? 'text-red-500' : modelUsed > 15 ? 'text-amber-500' : 'text-emerald-500';
-  const barColor = modelUsed >= QUOTA_LIMIT ? 'bg-red-500' : modelUsed > 15 ? 'bg-amber-500' : 'bg-emerald-500';
+  const quotaPercent = Math.min((modelUsed / effectiveLimit) * 100, 100);
+  const quotaColor = modelUsed >= effectiveLimit ? 'text-red-500' : modelUsed > (effectiveLimit * 0.75) ? 'text-amber-500' : 'text-emerald-500';
+  const barColor = modelUsed >= effectiveLimit ? 'bg-red-500' : modelUsed > (effectiveLimit * 0.75) ? 'bg-amber-500' : 'bg-emerald-500';
 
   const reportDate = summary?.neuralReport?.generatedAt;
   const reportModel = summary?.neuralReport?.model;
@@ -53,8 +54,8 @@ const NeuralReportModal = ({ isOpen, onClose }) => {
   }, [isOpen, view]);
 
   const handleGenerate = async (force = false) => {
-    if (modelUsed >= QUOTA_LIMIT) {
-      setError(`Daily limit (${QUOTA_LIMIT}) reached for ${selectedModel}. Try again tomorrow or switch models.`);
+    if (modelUsed >= effectiveLimit) {
+      setError(`Daily limit (${effectiveLimit}) reached for ${selectedModel}. Try again tomorrow or switch models.`);
       return;
     }
     setError(null);
@@ -79,7 +80,7 @@ const NeuralReportModal = ({ isOpen, onClose }) => {
         />
       </div>
       <span className={`text-[10px] font-black uppercase tracking-widest whitespace-nowrap ${quotaColor}`}>
-        {modelUsed} / {QUOTA_LIMIT}
+        {modelUsed} / {effectiveLimit}
       </span>
     </div>
   );
@@ -255,7 +256,7 @@ const NeuralReportModal = ({ isOpen, onClose }) => {
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">Daily Quota</span>
-                      <span className={`text-[9px] font-black uppercase tracking-widest ${quotaColor}`}>{modelUsed}/{QUOTA_LIMIT} used</span>
+                      <span className={`text-[9px] font-black uppercase tracking-widest ${quotaColor}`}>{modelUsed}/{effectiveLimit} used</span>
                     </div>
                     <QuotaBar />
                   </div>
@@ -269,7 +270,7 @@ const NeuralReportModal = ({ isOpen, onClose }) => {
 
                 <button
                   onClick={() => handleGenerate(false)}
-                  disabled={isGeneratingReport || modelUsed >= QUOTA_LIMIT}
+                  disabled={isGeneratingReport || modelUsed >= effectiveLimit}
                   className="w-full py-3.5 bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-500 hover:to-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-2xl flex items-center justify-center gap-2.5 text-[13px] font-black uppercase tracking-widest transition-all shadow-lg shadow-purple-500/25 active:scale-[0.98]"
                 >
                   <Sparkles size={15} />
@@ -331,7 +332,7 @@ const NeuralReportModal = ({ isOpen, onClose }) => {
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">Daily Quota — {selectedModel}</span>
-                      <span className={`text-[9px] font-black uppercase tracking-widest ${quotaColor}`}>{modelUsed}/{QUOTA_LIMIT} used</span>
+                      <span className={`text-[9px] font-black uppercase tracking-widest ${quotaColor}`}>{modelUsed}/{effectiveLimit} used</span>
                     </div>
                     <QuotaBar />
                   </div>
@@ -345,7 +346,7 @@ const NeuralReportModal = ({ isOpen, onClose }) => {
 
                 <button
                   onClick={() => handleGenerate(true)}
-                  disabled={isGeneratingReport || modelUsed >= QUOTA_LIMIT}
+                  disabled={isGeneratingReport || modelUsed >= effectiveLimit}
                   className="w-full py-3.5 bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-500 hover:to-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-2xl flex items-center justify-center gap-2.5 text-[13px] font-black uppercase tracking-widest transition-all shadow-lg shadow-purple-500/25 active:scale-[0.98]"
                 >
                   <RotateCcw size={15} />
@@ -420,7 +421,7 @@ const NeuralReportModal = ({ isOpen, onClose }) => {
                     </button>
                     <div className="w-px h-3 bg-zinc-200 dark:bg-zinc-700" />
                     <span className={`text-[9px] font-black uppercase tracking-widest ${quotaColor}`}>
-                      {modelUsed}/{QUOTA_LIMIT}
+                      {modelUsed}/{effectiveLimit}
                     </span>
                   </div>
                 </div>

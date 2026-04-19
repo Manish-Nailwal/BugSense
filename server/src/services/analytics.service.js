@@ -212,7 +212,7 @@ const getSkillGapResourceMap = () => {
   };
 };
 
-export const generateNeuralReport = async (userId, selectedModel = 'Gemini 2.5 Flash', force = false) => {
+export const generateNeuralReport = async (userId, selectedModel = 'Gemma 3 12B', force = false) => {
   const profile = await AnalyticsProfile.findOne({ userId });
   if (!profile) throw new Error('Analytics profile not initialized');
 
@@ -290,7 +290,7 @@ Each must:
 `;
 
   try {
-    const modelId = MODEL_MAPPING[selectedModel] || MODEL_MAPPING['Gemini 2.5 Flash'];
+    const modelId = MODEL_MAPPING[selectedModel] || MODEL_MAPPING['Gemma 3 12B'];
     const model = genAI.getGenerativeModel({ model: modelId });
     const result = await model.generateContent(prompt);
     const content = result.response.text();
@@ -336,7 +336,7 @@ export const getNeuralReportHistory = async (userId) => {
       const backfilled = await NeuralReport.create({
         userId: objectId,
         content: profile.neuralReport.content,
-        model: profile.neuralReport.model || 'Gemini 2.5 Flash',
+        model: profile.neuralReport.model || 'Gemma 3 12B',
         statsSnapshot: {},
         createdAt: profile.neuralReport.generatedAt || new Date()
       });
