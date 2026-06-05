@@ -91,8 +91,8 @@ Trace uses **Google's Gemini** models as its reasoning engine.
 
 1. **Clone the project**
    ```bash
-   git clone https://github.com/Manish-Nailwal/trace.git
-   cd trace
+   git clone https://github.com/Manish-Nailwal/BugSense.git
+   cd "Bug Sense"
    ```
 
 2. **Set up the server**
