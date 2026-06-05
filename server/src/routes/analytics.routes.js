@@ -9,5 +9,6 @@ router.post('/refresh', protect, analyticsController.refreshSummary);
 router.get('/sessions', protect, analyticsController.getSessionHistory);
 router.post('/report', protect, analyticsController.generateNeuralReport);
 router.get('/reports', protect, analyticsController.getNeuralReportHistory);
+router.get('/learning', protect, analyticsController.getLearningArchive);
 
 export default router;

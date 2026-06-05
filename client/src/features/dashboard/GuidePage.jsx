@@ -2,399 +2,416 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   motion,
   AnimatePresence,
-  useScroll,
-  useSpring,
-  useTransform,
 } from "framer-motion";
 import {
   Lightbulb,
   Cpu,
   Sparkles,
-  RefreshCw,
   X,
-  Loader2,
   Zap,
+  ArrowRight,
+  ChevronRight,
+  Code,
+  Terminal,
+  Play,
+  ArrowUpRight,
+  CheckCircle,
 } from "lucide-react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import guideData from "./guideData.json";
 import useAuthStore from "../../store/authStore";
 import useDebugStore from "../../store/debugStore";
+
 const GuidePage = () => {
   const { user } = useAuthStore();
   const { setErrorInput } = useDebugStore();
   const navigate = useNavigate();
+  
   const [activeStep, setActiveStep] = useState(0);
   const [roadmapFocus, setRoadmapFocus] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedRoadmap, setGeneratedRoadmap] = useState(null);
-  const containerRef = useRef(null);
+  const [generatedRoadmap, setGeneratedRoadmap] = useState("");
+  const stepsContainerRef = useRef(null);
 
-  const { scrollYProgress } = useScroll({
-    target: containerRef,
-    offset: ["start start", "end end"],
-  });
-
-  const scaleX = useSpring(scrollYProgress, { stiffness: 100, damping: 30 });
+  // Suggested prompts for developers
+  const suggestions = [
+    "React Hydration Mismatch",
+    "Docker DB Connection Timeout",
+    "Next.js Middleware Infinite Loop",
+    "MongoDB Authentication Failed",
+  ];
 
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            const step = parseInt(entry.target.getAttribute("data-step"));
-            if (!isNaN(step)) setActiveStep(step);
+            const step = parseInt(entry.target.getAttribute("data-step"), 10);
+            if (!isNaN(step)) {
+              setActiveStep(step);
+            }
           }
         });
       },
-      { threshold: 0.7 },
+      { 
+        rootMargin: "-25% 0px -55% 0px",
+        threshold: 0.1 
+      }
     );
 
-    const stages = document.querySelectorAll("[data-step]");
-    stages.forEach((el) => observer.observe(el));
+    const stepElements = document.querySelectorAll("[data-step]");
+    stepElements.forEach((el) => observer.observe(el));
     return () => observer.disconnect();
   }, []);
 
-  const handleGenerateRoadmap = () => {
-    if (!roadmapFocus) return;
-
+  const handleStartDebugging = (query = roadmapFocus) => {
+    if (!query) return;
     if (!user) {
       navigate("/auth/login");
       return;
     }
-
-    // Set the input in store so it appears in the chat/debugger
-    setErrorInput(roadmapFocus);
-    // Navigate to the resolution engine (Home/Dashboard)
+    setErrorInput(query);
     navigate("/");
   };
 
+  const handleGeneratePreview = async () => {
+    if (!roadmapFocus) return;
+    setIsGenerating(true);
+    setGeneratedRoadmap("");
+    
+    // Simulate AI thinking and streaming out a blueprint roadmap
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    
+    const mockPlan = `[TRACE SYSTEM ROADMAP GENERATOR]
+TOPIC: ${roadmapFocus}
+STATUS: DEDUCTIVE BLUEPRINT READY
+
+STAGE 1: ISOLATE RUNTIME CONTEXT
+- Hook system traceback logs using Trace parser.
+- Identify the call site frame containing target scope.
+
+STAGE 2: AI DEDUCTIVE ENGINE
+- Execute context expansion on target stack traces.
+- Run private token sanitizer to scrub authorization keys.
+
+STAGE 3: RESOLUTION PATHWAYS
+- Apply recommended code patching for hydration/timeouts.
+- Run local verify using dev tooling.
+- Confirm resolution and store telemetry inside Library.`;
+    
+    setGeneratedRoadmap(mockPlan);
+    setIsGenerating(false);
+  };
+
   return (
-    <div
-      className="h-screen overflow-y-auto overflow-x-hidden bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 scroll-smooth snap-y snap-mandatory"
-      ref={containerRef}
-    >
-      {/* Top Progress Bar */}
-      <motion.div
-        className="fixed top-0 left-0 right-0 h-1.5 bg-emerald-500 z-[100] origin-left"
-        style={{ scaleX }}
-      />
+    <div className="min-h-screen bg-zinc-50 dark:bg-[#09090b] text-zinc-900 dark:text-zinc-50 relative selection:bg-indigo-500/20 dark:selection:bg-violet-500/30 selection:text-indigo-650 dark:selection:text-violet-300">
+      
+      {/* Premium Technical Grid Background */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden -z-10">
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:32px_32px] dark:bg-[linear-gradient(to_right,#ffffff03_1px,transparent_1px),linear-gradient(to_bottom,#ffffff03_1px,transparent_1px)]" />
+        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-gradient-to-br from-indigo-500/10 to-transparent dark:from-violet-500/10 dark:to-transparent blur-[130px] rounded-full" />
+        <div className="absolute top-1/3 left-0 w-[500px] h-[500px] bg-gradient-to-tr from-blue-500/5 to-transparent dark:from-fuchsia-500/5 dark:to-transparent blur-[120px] rounded-full" />
+      </div>
 
-      {/* Redesigned Hero: Neural Blueprint Aesthetic */}
-      <section className="min-h-screen flex items-center justify-center p-8 md:p-24 snap-start relative overflow-hidden bg-zinc-50 dark:bg-zinc-950">
-        {/* Advanced Background Grid & Neural Elements */}
-        <div className="absolute inset-0 pointer-events-none select-none">
-          <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:64px_64px]" />
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-emerald-500/5 blur-[120px] rounded-full" />
+      {/* Hero Section */}
+      <section className="relative pt-32 pb-20 px-6 max-w-7xl mx-auto border-b border-zinc-200/60 dark:border-zinc-900/60">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+          
+          {/* Hero Text */}
+          <div className="lg:col-span-7 space-y-8">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-violet-950/30 border border-indigo-100/50 dark:border-violet-900/30 text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-violet-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-650 dark:bg-violet-400 animate-pulse" />
+              Developer Documentation
+            </div>
+            
+            <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-zinc-900 dark:text-white leading-[1.05]">
+              Master the <span className="bg-gradient-to-r from-indigo-600 to-violet-600 dark:from-violet-400 dark:to-fuchsia-400 bg-clip-text text-transparent">Resolution</span> Flow.
+            </h1>
+            
+            <p className="text-base md:text-lg text-zinc-500 dark:text-zinc-400 max-w-xl leading-relaxed">
+              Trace turns messy stack traces into clear, actionable architectural plans. Follow this interactive guide to optimize your debugging cycle.
+            </p>
 
-          {/* Animated "Blueprint" Lines */}
-          <svg
-            className="absolute inset-0 w-full h-full opacity-20 dark:opacity-40"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <motion.path
-              d="M-100 200 L400 200 L600 400 L1200 400"
-              stroke="currentColor"
-              fill="transparent"
-              strokeWidth="0.5"
-              className="text-emerald-500"
-              initial={{ pathLength: 0 }}
-              animate={{ pathLength: 1 }}
-              transition={{
-                duration: 3,
-                repeat: Infinity,
-                repeatType: "reverse",
-                ease: "easeInOut",
-              }}
-            />
-          </svg>
-        </div>
+            {/* Quick Specs telemetry */}
+            <div className="grid grid-cols-3 gap-6 pt-4 max-w-lg border-t border-zinc-200/55 dark:border-zinc-900/60">
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-zinc-400 dark:text-zinc-500 font-bold mb-1">Deductive Engine</div>
+                <div className="text-sm font-bold text-zinc-850 dark:text-zinc-200">Gemini Pro</div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-zinc-400 dark:text-zinc-500 font-bold mb-1">Scrubbing Scope</div>
+                <div className="text-sm font-bold text-zinc-850 dark:text-zinc-200">Client-Side Only</div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-zinc-400 dark:text-zinc-500 font-bold mb-1">Telemetry Library</div>
+                <div className="text-sm font-bold text-zinc-850 dark:text-zinc-200">Instant Sync</div>
+              </div>
+            </div>
+          </div>
 
-        <div className="max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-20 items-center relative z-10">
-          <motion.div
-            initial={{ opacity: 0, x: -40 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
-            className="space-y-12"
-          >
-            <div className="space-y-6">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-0.5 bg-emerald-500" />
-                <span className="text-[11px] font-black uppercase tracking-[0.5em] text-emerald-500">
-                  How to use Bug Sense // The Guide
+          {/* Hero Visual Mockup */}
+          <div className="lg:col-span-5 relative">
+            <div className="absolute inset-0 bg-indigo-500/10 dark:bg-violet-500/10 blur-[80px] rounded-3xl" />
+            <div className="relative rounded-2xl border border-zinc-200 dark:border-zinc-850 bg-white dark:bg-zinc-950/80 p-6 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-zinc-150 dark:border-zinc-900">
+                <div className="flex gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-zinc-250 dark:bg-zinc-800" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-zinc-250 dark:bg-zinc-800" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-zinc-250 dark:bg-zinc-800" />
+                </div>
+                <span className="text-[10px] font-mono text-zinc-400 dark:text-zinc-500">trace_engine_status.sh</span>
+              </div>
+              <div className="space-y-2 font-mono text-xs text-zinc-650 dark:text-zinc-400">
+                <p className="text-indigo-600 dark:text-violet-400 font-bold">$ trace --init</p>
+                <p className="text-zinc-400 dark:text-zinc-500">// Binding server environment on localhost:5173</p>
+                <p className="text-zinc-700 dark:text-zinc-300">✓ Ingestion listener initialized</p>
+                <p className="text-emerald-600 dark:text-emerald-400">✓ Ready to intercept system exceptions</p>
+              </div>
+              <div className="pt-2 flex justify-end">
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-[10px] font-bold text-zinc-500 dark:text-zinc-400">
+                  v1.2.0-stable
                 </span>
               </div>
-
-              <h1 className="text-7xl md:text-9xl font-[1000] uppercase italic tracking-tighter leading-[0.85] text-zinc-900 dark:text-zinc-50">
-                Master <br />
-                <span className="text-emerald-500">The Fix.</span>
-              </h1>
-
-              <p className="text-xl md:text-2xl text-zinc-500 dark:text-zinc-400 font-medium max-w-xl leading-relaxed">
-                A simple guide to using Bug Sense for finding and fixing bugs
-                quickly and effectively.
-              </p>
             </div>
-
-            <div className="flex flex-wrap gap-8 items-center">
-              <div className="flex items-center gap-4 group cursor-help">
-                <div className="w-12 h-12 rounded-2xl bg-zinc-900 dark:bg-zinc-100 flex items-center justify-center text-zinc-100 dark:text-zinc-900 shadow-xl group-hover:bg-emerald-500 group-hover:text-zinc-950 transition-colors">
-                  <Cpu size={24} />
-                </div>
-                <div>
-                  <div className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
-                    Powered By
-                  </div>
-                  <div className="text-sm font-bold uppercase italic flex flex-col -gap-1">
-                    <span>Google AI Studio</span>
-                    {/* <span className="text-[9px] text-emerald-500/70 not-italic tracking-wider">
-                      SnixleIndiaa Org
-                    </span> */}
-                  </div>
-                </div>
-              </div>
-
-              <div className="w-px h-12 bg-zinc-200 dark:bg-zinc-800 hidden sm:block" />
-
-              <div className="flex items-center gap-4">
-                <div className="flex -space-x-3">
-                  {[1, 2, 3].map((i) => (
-                    <div
-                      key={i}
-                      className="w-10 h-10 rounded-full border-2 border-zinc-50 dark:border-zinc-950 bg-zinc-200 dark:bg-zinc-800 flex items-center justify-center text-[10px] font-black uppercase overflow-hidden"
-                    >
-                      <img
-                        src={`https://i.pravatar.cc/100?u=${i}`}
-                        alt="user"
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  ))}
-                </div>
-                <div className="text-[10px] font-black uppercase tracking-tight text-zinc-400">
-                  JOINED BY{" "}
-                  <span className="text-zinc-900 dark:text-zinc-50">
-                    4.2K+ DEBUGGERS
-                  </span>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8, rotate: 5 }}
-            animate={{ opacity: 1, scale: 1, rotate: 0 }}
-            transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
-            className="hidden lg:block relative"
-          >
-            {/* High-Fidelity Logo Presentation */}
-            <div className="relative z-10 w-full aspect-square max-w-md mx-auto">
-              <div className="absolute inset-0 bg-emerald-500/20 blur-[100px] rounded-full animate-pulse" />
-              <div className="relative h-full w-full rounded-[60px] bg-zinc-950 border border-white/10 p-16 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.5)] flex items-center justify-center group overflow-hidden">
-                <div className="absolute inset-0 bg-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                <img
-                  src="/media/bug_sense_logo.png"
-                  alt="BugSense Brand"
-                  className="w-full h-full object-contain relative z-10 filter brightness-110 drop-shadow-[0_0_30px_rgba(16,185,129,0.3)] transition-transform duration-700 group-hover:scale-110"
-                />
-              </div>
-
-              {/* Floating Technical Specs Indicators */}
-              <div className="absolute -top-6 -right-6 p-4 rounded-2xl bg-zinc-950/80 backdrop-blur-xl border border-white/10 shadow-2xl space-y-1">
-                <div className="text-[8px] font-black uppercase tracking-widest text-emerald-500">
-                  Response Speed
-                </div>
-                <div className="text-xs font-mono font-bold text-white">
-                  Ultra Fast
-                </div>
-              </div>
-              <div className="absolute -bottom-10 -left-10 p-6 rounded-[30px] bg-zinc-950/80 backdrop-blur-xl border border-white/10 shadow-2xl flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
-                  <Sparkles size={20} />
-                </div>
-                <div>
-                  <div className="text-[8px] font-black uppercase tracking-widest text-zinc-500">
-                    Fix Accuracy
-                  </div>
-                  <div className="text-sm font-black italic text-white uppercase tracking-tighter">
-                    99.8% Success Rate
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
+          </div>
         </div>
-
-
       </section>
 
-      {/* Guide Stages - Alternating Layout Redesign */}
-      {guideData.map((step, idx) => (
-        <section
-          key={idx}
-          data-step={idx}
-          className="py-24 md:py-40 flex items-center justify-center p-8 lg:p-24 snap-start relative border-b border-zinc-100 dark:border-zinc-900 last:border-none"
-        >
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-24 items-center max-w-6xl mx-auto w-full">
-            {/* Text Side */}
-            <div
-              className={`space-y-10 order-2 ${idx % 2 === 0 ? "lg:order-1" : "lg:order-2"}`}
-            >
-              <motion.div
-                initial={{ opacity: 0, x: idx % 2 === 0 ? -30 : 30 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                className="space-y-6"
-              >
-                <div className="inline-flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500 text-zinc-950 flex items-center justify-center font-black text-lg shadow-lg shadow-emerald-500/10 italic">
+      {/* Two-Column Interactive Walkthrough Section */}
+      <section className="max-w-7xl mx-auto px-6 py-20">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-16">
+          
+          {/* Left Column: Vertical Timeline Steps */}
+          <div className="lg:col-span-7 space-y-16" ref={stepsContainerRef}>
+            {guideData.map((step, idx) => {
+              const isCurrent = activeStep === idx;
+              return (
+                <div
+                  key={idx}
+                  data-step={idx}
+                  className={`relative pl-8 md:pl-12 border-l-2 transition-all duration-300 ${
+                    isCurrent 
+                      ? "border-indigo-600 dark:border-violet-500 opacity-100" 
+                      : "border-zinc-200 dark:border-zinc-900 opacity-50 hover:opacity-80"
+                  }`}
+                >
+                  {/* Glowing Step Bubble */}
+                  <div className={`absolute -left-[17px] top-0 w-8 h-8 rounded-full flex items-center justify-center font-extrabold text-sm border-2 transition-all duration-300 ${
+                    isCurrent 
+                      ? "bg-indigo-650 dark:bg-violet-600 text-white border-indigo-600 dark:border-violet-500 shadow-[0_0_12px_rgba(124,58,237,0.4)] scale-110" 
+                      : "bg-zinc-100 dark:bg-zinc-900 text-zinc-500 border-zinc-200 dark:border-zinc-800"
+                  }`}>
                     {step.step}
                   </div>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">
-                    Current Step // {step.subtitle}
-                  </span>
-                </div>
 
-                <div className="space-y-3">
-                  <h2 className="text-4xl md:text-5xl font-black uppercase italic tracking-tighter leading-[0.9] text-zinc-900 dark:text-zinc-50">
-                    {step.title}
-                  </h2>
-                  <p className="text-lg text-zinc-500 font-medium leading-relaxed max-w-lg">
-                    {step.description}
-                  </p>
-                </div>
+                  <div className="space-y-4">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-violet-450">
+                      Phase {step.step} &bull; {step.subtitle}
+                    </span>
+                    <h3 className="text-2xl md:text-3xl font-bold text-zinc-850 dark:text-white tracking-tight">
+                      {step.title}
+                    </h3>
+                    <p className="text-zinc-500 dark:text-zinc-400 text-sm md:text-base leading-relaxed">
+                      {step.description}
+                    </p>
 
-                <div className="p-5 rounded-2xl bg-zinc-100/50 dark:bg-zinc-900/50 border border-zinc-200/50 dark:border-zinc-800/50 flex gap-4 backdrop-blur-sm group">
-                  <div className="w-8 h-8 shrink-0 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-500">
-                    <Lightbulb size={18} />
+                    {/* Pro-Tip Box */}
+                    <div className="p-4 rounded-xl bg-zinc-100/50 dark:bg-zinc-950/40 border border-zinc-200/50 dark:border-zinc-850/50 flex gap-3.5 backdrop-blur-sm">
+                      <div className="w-6 h-6 shrink-0 rounded bg-indigo-50 dark:bg-violet-950/50 flex items-center justify-center text-indigo-650 dark:text-violet-400">
+                        <Lightbulb size={14} />
+                      </div>
+                      <p className="text-xs font-medium text-zinc-650 dark:text-zinc-400 italic">
+                        {step.tips}
+                      </p>
+                    </div>
+
+                    {/* Clickable Mobile/Tablet preview view indicator */}
+                    <button 
+                      onClick={() => setActiveStep(idx)}
+                      className="lg:hidden inline-flex items-center gap-1.5 text-xs font-bold text-indigo-650 dark:text-violet-400 hover:underline pt-2"
+                    >
+                      View details layout <ChevronRight size={14} />
+                    </button>
                   </div>
-                  <p className="text-xs font-bold text-zinc-600 dark:text-zinc-400 leading-relaxed italic">
-                    “{step.tips}”
-                  </p>
                 </div>
-              </motion.div>
-            </div>
+              );
+            })}
+          </div>
 
-            {/* Visual Side */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.98, x: idx % 2 === 0 ? 30 : -30 }}
-              whileInView={{ opacity: 1, scale: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
-              className={`relative aspect-video rounded-3xl overflow-hidden shadow-2xl border border-zinc-200 dark:border-zinc-800 group order-1 ${idx % 2 === 0 ? "lg:order-2" : "lg:order-1"}`}
-            >
-              <img
-                src={step.image}
-                alt={step.title}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-[1.5s]"
-              />
-
-              {/* Minimal Marker Overlay */}
-              <div className="absolute top-4 right-4 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
-                <div className="px-3 py-1.5 rounded-full bg-zinc-950/90 backdrop-blur-md border border-white/10 shadow-xl flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-[8px] font-black text-white uppercase tracking-tighter">
-                    {step.marker}
+          {/* Right Column: Sticky Visual Preview Screen */}
+          <div className="hidden lg:block lg:col-span-5">
+            <div className="sticky top-28 space-y-6">
+              <div className="rounded-2xl border border-zinc-200 dark:border-zinc-850 bg-white dark:bg-zinc-950/50 shadow-2xl overflow-hidden backdrop-blur-md">
+                
+                {/* Console header */}
+                <div className="px-4 py-3 bg-zinc-50 dark:bg-zinc-950/90 border-b border-zinc-200 dark:border-zinc-900 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-zinc-200 dark:bg-zinc-800" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-zinc-200 dark:bg-zinc-800" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-zinc-200 dark:bg-zinc-800" />
+                  </div>
+                  <span className="text-[10px] font-mono font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest flex items-center gap-1.5">
+                    <Terminal size={10} /> Preview Screen
                   </span>
+                </div>
+
+                {/* Main Image View */}
+                <div className="relative aspect-video bg-zinc-100 dark:bg-zinc-900 overflow-hidden group">
+                  <AnimatePresence mode="wait">
+                    <motion.img
+                      key={activeStep}
+                      initial={{ opacity: 0, scale: 1.02 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.98 }}
+                      transition={{ duration: 0.35, ease: "easeInOut" }}
+                      src={guideData[activeStep]?.image}
+                      alt={guideData[activeStep]?.title}
+                      className="w-full h-full object-cover"
+                    />
+                  </AnimatePresence>
+
+                  {/* Marker overlay */}
+                  <div className="absolute bottom-4 left-4 right-4 bg-zinc-950/80 backdrop-blur-md border border-white/10 p-3 rounded-xl shadow-xl flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-indigo-500 dark:bg-violet-400 animate-pulse" />
+                      <span className="text-[10px] font-bold text-zinc-300 font-mono">
+                        {guideData[activeStep]?.marker}
+                      </span>
+                    </div>
+                    <span className="text-[9px] uppercase tracking-wider text-indigo-400 font-black">
+                      STEP {guideData[activeStep]?.step}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </motion.div>
-          </div>
-        </section>
-      ))}
 
-      {/* Final Roadmap Section - Compact & Modern Redesign */}
-      <section className="py-32 flex items-center justify-center p-8 snap-start relative bg-zinc-900 text-white overflow-hidden">
-        {/* Subtle Background Glow */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-emerald-500/10 blur-[120px] rounded-full -z-10" />
+              {/* Auxiliary telemetry status panel */}
+              <div className="p-5 rounded-2xl border border-zinc-200 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-950/30 space-y-3">
+                <div className="flex items-center justify-between text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">
+                  <span>Interactive Telemetry</span>
+                  <span className="text-indigo-600 dark:text-violet-400">ACTIVE</span>
+                </div>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                  Scroll the page or click step markers on the left to review the lifecycle stages of error isolation within the Trace platform.
+                </p>
+              </div>
 
-        <div className="max-w-3xl w-full space-y-10 text-center relative">
-          <div className="space-y-4">
-            <div className="flex items-center justify-center gap-2 text-emerald-400 opacity-80 mb-2">
-              <Cpu size={16} />
-              <span className="text-[10px] font-black uppercase tracking-[0.4em] ">
-                AI Fix Plan
-              </span>
             </div>
-            <h2 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter leading-none">
-              Build your <span className="text-emerald-500">Plan.</span>
+          </div>
+
+        </div>
+      </section>
+
+      {/* AI Command Center: Custom Roadmap Section */}
+      <section className="border-t border-zinc-200 dark:border-zinc-900 py-24 px-6 bg-zinc-100/50 dark:bg-zinc-950/30">
+        <div className="max-w-4xl mx-auto space-y-12">
+          
+          <div className="text-center space-y-4 max-w-2xl mx-auto">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-indigo-50 dark:bg-violet-950/40 text-indigo-650 dark:text-violet-400 text-[10px] font-black uppercase tracking-widest">
+              <Cpu size={12} /> Blueprint Sandbox
+            </div>
+            <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight text-zinc-850 dark:text-white">
+              Generate custom fix steps.
             </h2>
-            <p className="text-zinc-400 text-base font-medium max-w-md mx-auto leading-relaxed">
-              Describe your error or topic to generate a custom step-by-step
-              resolution plan.
+            <p className="text-zinc-500 dark:text-zinc-400 text-sm md:text-base leading-relaxed">
+              Describe your error theme to build a step-by-step resolution blueprint.
             </p>
           </div>
 
-          <div className="relative group max-w-2xl mx-auto">
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500/20 to-emerald-500/0 rounded-[24px] blur opacity-0 group-focus-within:opacity-100 transition duration-500" />
-            <div className="relative flex flex-col sm:flex-row gap-2 p-2 bg-white/5 border border-white/10 rounded-[24px] backdrop-blur-sm transition-all group-focus-within:border-emerald-500/30 group-focus-within:bg-white/10">
-              <div className="flex-1 flex items-center px-4">
-                <Sparkles size={18} className="text-emerald-500/50 mr-3" />
-                <input
-                  type="text"
-                  value={roadmapFocus}
-                  onChange={(e) => setRoadmapFocus(e.target.value)}
-                  placeholder="e.g., React Hydration Error, Docker Setup..."
-                  className="w-full bg-transparent border-none py-4 text-white placeholder:text-zinc-600 focus:outline-none font-medium"
-                />
+          <div className="space-y-6">
+            {/* Input card container */}
+            <div className="p-6 rounded-2xl bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-850 shadow-xl space-y-4">
+              <div className="flex flex-col md:flex-row gap-3">
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    value={roadmapFocus}
+                    onChange={(e) => setRoadmapFocus(e.target.value)}
+                    placeholder="e.g., React Hydration Mismatch, database lock issue..."
+                    className="w-full bg-zinc-50 dark:bg-[#0c0c0e] border border-zinc-200 dark:border-zinc-900 rounded-xl px-4 py-3.5 text-sm font-medium text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500 dark:focus:border-violet-500"
+                  />
+                </div>
+                
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleGeneratePreview}
+                    disabled={!roadmapFocus || isGenerating}
+                    className="flex-1 md:flex-initial px-5 py-3.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 disabled:opacity-40 rounded-xl font-bold text-xs uppercase tracking-wider text-zinc-700 dark:text-zinc-300 transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    {isGenerating ? "Thinking..." : "Generate Preview"}
+                  </button>
+                  <button
+                    onClick={() => handleStartDebugging()}
+                    disabled={!roadmapFocus}
+                    className="flex-1 md:flex-initial px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 dark:bg-violet-600 dark:hover:bg-violet-700 text-white disabled:opacity-40 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-500/10 dark:shadow-violet-500/15"
+                  >
+                    <span>Start Debug</span>
+                    <ArrowRight size={14} />
+                  </button>
+                </div>
               </div>
-              <button
-                onClick={handleGenerateRoadmap}
-                disabled={!roadmapFocus}
-                className="sm:px-8 py-4 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 disabled:hover:bg-emerald-500 text-zinc-950 font-black uppercase tracking-widest text-xs rounded-[18px] transition-all flex items-center justify-center gap-2 active:scale-95"
-              >
-                <Zap size={16} fill="currentColor" />
-                <span>Generate</span>
-              </button>
+
+              {/* Suggestions list */}
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-[10px] uppercase font-bold text-zinc-400 dark:text-zinc-500 mr-1">Suggestions:</span>
+                {suggestions.map((item) => (
+                  <button
+                    key={item}
+                    onClick={() => {
+                      setRoadmapFocus(item);
+                    }}
+                    className="px-2.5 py-1 rounded bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-900 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-850 text-[10px] font-bold text-zinc-650 dark:text-zinc-400 transition-colors"
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            {/* Generated roadmap response panel */}
+            <AnimatePresence>
+              {(isGenerating || generatedRoadmap) && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -12 }}
+                  className="rounded-2xl border border-zinc-200 dark:border-zinc-850 bg-white dark:bg-zinc-950 overflow-hidden shadow-2xl"
+                >
+                  <div className="px-5 py-3 bg-zinc-50 dark:bg-zinc-950/80 border-b border-zinc-200 dark:border-zinc-900 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Terminal size={14} className="text-indigo-650 dark:text-violet-400" />
+                      <span className="text-xs font-mono font-bold text-zinc-800 dark:text-zinc-200">
+                        {isGenerating ? "Synthesizing plan..." : "Blueprint Output"}
+                      </span>
+                    </div>
+                    {!isGenerating && (
+                      <button
+                        onClick={() => setGeneratedRoadmap("")}
+                        className="p-1 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded text-zinc-400 hover:text-zinc-650 dark:hover:text-zinc-200 transition-colors"
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="p-6 bg-zinc-950 text-zinc-300 font-mono text-xs leading-relaxed overflow-x-auto whitespace-pre selection:bg-indigo-500/25 selection:text-white">
+                    {isGenerating ? (
+                      <div className="flex items-center gap-2 text-zinc-500 py-4">
+                        <span className="w-1.5 h-1.5 bg-indigo-500 dark:bg-violet-400 rounded-full animate-ping" />
+                        <span>Analysing runtime boundaries...</span>
+                      </div>
+                    ) : (
+                      generatedRoadmap
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
-          <AnimatePresence>
-            {generatedRoadmap && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                className="mt-12 text-left"
-              >
-                <div className="p-1 rounded-[32px] bg-gradient-to-b from-white/10 to-transparent">
-                  <div className="p-8 rounded-[31px] bg-zinc-950 border border-white/5 space-y-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-emerald-500/10 rounded-xl text-emerald-500">
-                          <Cpu size={20} />
-                        </div>
-                        <h3 className="text-sm font-black uppercase italic tracking-wider text-emerald-500">
-                          Custom Fix Plan // {roadmapFocus}
-                        </h3>
-                      </div>
-                      <button
-                        onClick={() => setGeneratedRoadmap(null)}
-                        className="p-2 hover:bg-white/5 rounded-full transition-colors text-zinc-500 hover:text-white"
-                      >
-                        <X size={20} />
-                      </button>
-                    </div>
-                    <div className="bg-black/60 p-6 rounded-2xl border border-white/5 text-zinc-400 font-mono text-xs leading-loose whitespace-pre-wrap selection:bg-emerald-500 selection:text-zinc-950">
-                      {generatedRoadmap}
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
       </section>
 
-      {/* Simple Indicator Nav */}
-      <div className="fixed right-8 top-1/2 -translate-y-1/2 hidden md:flex flex-col gap-4 z-50">
-        {[...Array(guideData.length + 2)].map((_, idx) => (
-          <div
-            key={idx}
-            className={`w-2 h-2 rounded-full transition-all duration-300 ${activeStep === idx - 1 ? "bg-emerald-500 scale-150 shadow-[0_0_10px_rgba(16,185,129,0.5)]" : "bg-zinc-800"}`}
-          />
-        ))}
-      </div>
     </div>
   );
 };

@@ -1,4 +1,6 @@
 import { genAI, MODEL_MAPPING } from '../config/gemini.js';
+import { stripMeta } from '../utils/text.js';
+import { reserveInputTokens, estimateTokens } from '../utils/rateLimiter.js';
 
 /**
  * Generates an SEO-optimized markdown article based on a resolved debug session
@@ -50,23 +52,29 @@ This ensures that the **State Transition** is idempotent.
 /**
  * Generates an SEO-optimized markdown article based on a resolved debug session
  */
-export const generateArticle = async (rawError, aiAnalysis, userNote, category, selectedModel = 'Gemma 3 12B', messages = []) => {
-  if (process.env.NODE_ENV === 'development' || process.env.MOCK_AI === 'true') {
+export const generateArticle = async (rawError, aiAnalysis, userNote, category, selectedModel = 'Gemini 3 Flash', messages = [], contextSummary = '') => {
+  if (process.env.MOCK_AI === 'true') {
     return mockGenerateArticle(rawError, aiAnalysis, userNote, category);
   }
 
   const chatHistory = messages
-    .map(m => `[${m.role.toUpperCase()}]: ${m.content.substring(0, 500)}`)
+    .map(m => `[${m.role.toUpperCase()}]: ${stripMeta(m.content).substring(0, 500)}`)
     .join('\n\n');
 
+  // For long sessions, the rolling summary captures the older turns that were
+  // compressed out of the live window.
+  const summarySection = contextSummary && contextSummary.trim()
+    ? `\n    - **Earlier Conversation Summary:** """${contextSummary.trim()}"""`
+    : '';
+
   const prompt = `
-    You are BugSense, a technical documentation specialist.
+    You are Trace, a technical documentation specialist.
     Create a high-quality, SEO-optimized knowledge base article about a fixed bug based on a diagnostic session.
-    
+
     ### CONTEXT:
     - **Initial Error:** """${rawError}"""
-    - **Initial Analysis:** """${aiAnalysis}"""
-    - **Complete Conversation History:** 
+    - **Initial Analysis:** """${aiAnalysis}"""${summarySection}
+    - **Complete Conversation History:**
       """
       ${chatHistory}
       """
@@ -93,7 +101,14 @@ export const generateArticle = async (rawError, aiAnalysis, userNote, category, 
   `;
 
   try {
-    const modelId = MODEL_MAPPING[selectedModel] || MODEL_MAPPING['Gemma 3 12B'];
+    // Respect the input tokens-per-minute budget (blog gen sends the whole convo).
+    const reservation = reserveInputTokens(estimateTokens(prompt));
+    if (!reservation.ok) {
+      const secs = Math.max(1, Math.ceil(reservation.retryAfterMs / 1000));
+      throw new Error(`Trace is at its per-minute capacity. Please try publishing again in ~${secs}s.`);
+    }
+
+    const modelId = MODEL_MAPPING[selectedModel] || MODEL_MAPPING['Gemini 3 Flash'];
     const model = genAI.getGenerativeModel({ model: modelId });
     const result = await model.generateContent(prompt);
     const fullContent = result.response.text();

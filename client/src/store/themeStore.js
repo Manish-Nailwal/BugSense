@@ -5,9 +5,10 @@ export const useThemeStore = create()(
   persist(
     (set) => ({
       theme: 'dark', // Default to dark as per plan
-      toggleTheme: () => set((state) => ({ 
-        theme: state.theme === 'dark' ? 'light' : 'dark' 
+      toggleTheme: () => set((state) => ({
+        theme: state.theme === 'dark' ? 'light' : 'dark'
       })),
+      setTheme: (theme) => set({ theme: theme === 'light' ? 'light' : 'dark' }),
     }),
     {
       name: 'bugsense-theme',

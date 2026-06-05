@@ -2,7 +2,7 @@
  * Mocks the Gemini AI response for testing purposes.
  * Simulates the streaming behavior using timeouts.
  */
-export const mockDebugAnalysis = async (errorLog, res, history = [], selectedModel = 'Gemini 3 Flash') => {
+export const mockDebugAnalysis = async (errorLog, res, history = [], options = {}) => {
   const isFollowUp = history.length > 0;
   
   const mockResponses = [
@@ -47,6 +47,7 @@ export const mockDebugAnalysis = async (errorLog, res, history = [], selectedMod
 
     __JSON_META__
     {
+      "title": "TypeScript Number Concatenation",
       "category": "TypeScript Types",
       "techStack": ["React", "TypeScript"]
     }
@@ -63,7 +64,10 @@ export const mockDebugAnalysis = async (errorLog, res, history = [], selectedMod
     ? followUpResponses[Math.floor(Math.random() * followUpResponses.length)]
     : mockResponses[Math.floor(Math.random() * mockResponses.length)];
 
-  const cleanText = fullText.replace(/__JSON_META__[\s\S]*?__JSON_META__/, '').trim();
+  const cleanText = fullText
+    .replace(/__JSON_META__[\s\S]*?__JSON_META__/, '')
+    .replace(/^[ \t]{4}/gm, '') // strip source indentation so Markdown doesn't treat it as a code block
+    .trim();
   const chunks = cleanText.split(' '); // Chunk by words for better effect
 
   for (const word of chunks) {

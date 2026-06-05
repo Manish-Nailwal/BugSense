@@ -3,7 +3,7 @@
     "step": 1,
     "title": "Share your error",
     "subtitle": "Easy log submission",
-    "description": "Just copy and paste your error message or code. BugSense cleans up the mess and finds the real problem for you.",
+    "description": "Just copy and paste your error message or code. Trace cleans up the mess and finds the real problem for you.",
     "image": "/media/processed/HomePage_Annotated.png",
     "tips": "Try pasting the whole terminal output—it's okay if it's messy!",
     "marker": "Paste your code here to start."
@@ -12,7 +12,7 @@
     "step": 2,
     "title": "AI checks the code",
     "subtitle": "Fast analysis",
-    "description": "Our AI (Gemma 3) reads your error and explains exactly what's going wrong in plain English.",
+    "description": "Our AI (Gemini) reads your error and explains exactly what's going wrong in plain English.",
     "image": "/media/processed/ChatPage_Annotated.png",
     "tips": "Wait a few seconds for the AI to finish thinking.",
     "marker": "The AI is now reading your error."

@@ -1,437 +1,227 @@
 import React, { useState, useEffect } from 'react';
 import useAnalyticsStore from '../../store/analyticsStore';
-import useDebugStore from '../../store/debugStore';
 import {
-  X, Sparkles, Loader2, BrainCircuit, RotateCcw,
-  History, FileText, Calendar, ChevronRight,
-  ArrowLeft, ArrowRight, Cpu, Clock
+  X, BrainCircuit, Sparkles, RotateCcw, Loader2, FileText, ArrowUpRight, ArrowRight,
+  CheckCircle2, Clock, AlertCircle, BookOpen, GraduationCap,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import ReactMarkdown from 'react-markdown';
-import ModelSelector from '../debugger/ModelSelector';
 import { useNavigate } from 'react-router-dom';
 
-// We now handle dynamic limits based on the model name in the component logic
+const LEVEL = {
+  good: { text: 'text-emerald-500', bg: 'bg-emerald-500/10', icon: CheckCircle2, label: 'Good time to generate' },
+  ok: { text: 'text-amber-500', bg: 'bg-amber-500/10', icon: Clock, label: 'Optional refresh' },
+  wait: { text: 'text-zinc-400', bg: 'bg-zinc-400/10', icon: Clock, label: 'Maybe wait' },
+  limit: { text: 'text-rose-500', bg: 'bg-rose-500/10', icon: AlertCircle, label: 'Limit reached' },
+};
+
+const fmtDate = (d) =>
+  new Date(d || Date.now()).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 
 const NeuralReportModal = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   const {
-    summary, neuralReport, neuralHistory, quotaCounts,
-    isGeneratingReport, isFetchingHistory,
-    generateNeuralReport, fetchNeuralHistory, fetchQuota
+    summary, neuralReport, neuralHistory,
+    isGeneratingReport, generateNeuralReport, fetchNeuralHistory, fetchSummary,
   } = useAnalyticsStore();
-  const { selectedModel } = useDebugStore();
 
   const [error, setError] = useState(null);
-  const [view, setView] = useState('current');
-  const [selectedHistoryReport, setSelectedHistoryReport] = useState(null);
-  // 'card' | 'reader' | 'regenerate'
-  const [currentMode, setCurrentMode] = useState('card');
 
-  // Server returns keys with dots (e.g. "Gemini 2.5 Flash") — use model name directly
-  const modelKey = selectedModel;
-  const effectiveLimit = selectedModel.toLowerCase().startsWith("gemma") ? 14000 : 20;
-  const modelUsed = quotaCounts?.[modelKey] ?? 0;
-  const quotaPercent = Math.min((modelUsed / effectiveLimit) * 100, 100);
-  const quotaColor = modelUsed >= effectiveLimit ? 'text-red-500' : modelUsed > (effectiveLimit * 0.75) ? 'text-amber-500' : 'text-emerald-500';
-  const barColor = modelUsed >= effectiveLimit ? 'bg-red-500' : modelUsed > (effectiveLimit * 0.75) ? 'bg-amber-500' : 'bg-emerald-500';
-
-  const reportDate = summary?.neuralReport?.generatedAt;
-  const reportModel = summary?.neuralReport?.model;
+  const rs = summary?.reportStatus || {};
+  const canGenerate = rs.canGenerate !== false;
+  const rec = rs.recommendation || { level: 'good', message: 'Generate an insight report from your activity.' };
+  const history = Array.isArray(neuralHistory) ? neuralHistory : [];
+  const latest = history[0] || null;
+  const hasReport = !!neuralReport || history.length > 0;
 
   useEffect(() => {
     if (isOpen) {
-      fetchQuota();
-      setCurrentMode('card');
+      fetchSummary();
+      fetchNeuralHistory();
       setError(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  useEffect(() => {
-    if (isOpen && view === 'history') {
-      fetchNeuralHistory();
-    }
-  }, [isOpen, view]);
-
-  const handleGenerate = async (force = false) => {
-    if (modelUsed >= effectiveLimit) {
-      setError(`Daily limit (${effectiveLimit}) reached for ${selectedModel}. Try again tomorrow or switch models.`);
+  const handleGenerate = async () => {
+    if (!canGenerate) {
+      setError(rec.message);
       return;
     }
     setError(null);
     try {
-      await generateNeuralReport(selectedModel, force);
-      await fetchQuota();
-      setCurrentMode('card');
+      await generateNeuralReport(hasReport);
+      await Promise.all([fetchSummary(), fetchNeuralHistory()]);
     } catch (err) {
       setError(err.response?.data?.message || err.message || 'Generation failed');
     }
   };
 
+  const goToReport = (reportId) => {
+    onClose();
+    navigate('/analytics/reports', reportId ? { state: { reportId } } : undefined);
+  };
+
   if (!isOpen) return null;
 
-  /* ── Shared: Quota Bar ── */
-  const QuotaBar = () => (
-    <div className="flex items-center gap-3">
-      <div className="flex-1 h-1 bg-zinc-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all duration-700 ${barColor}`}
-          style={{ width: `${quotaPercent}%` }}
-        />
-      </div>
-      <span className={`text-[10px] font-black uppercase tracking-widest whitespace-nowrap ${quotaColor}`}>
-        {modelUsed} / {effectiveLimit}
-      </span>
-    </div>
-  );
-
-  /* ── Shared: Report history row card ── */
-  const ReportRowCard = ({ report, onClick }) => (
-    <button
-      onClick={onClick}
-      className="w-full p-4 text-left bg-white dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-700/60 rounded-2xl hover:border-purple-400/50 dark:hover:border-purple-500/40 transition-all flex items-center justify-between group shadow-sm hover:shadow-md"
-    >
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-700 flex items-center justify-center text-zinc-400 group-hover:text-purple-500 transition-colors">
-          <FileText size={17} />
-        </div>
-        <div>
-          <p className="text-[13px] font-bold text-zinc-900 dark:text-white leading-tight">Report Synthesis</p>
-          <p className="text-[10px] font-semibold text-zinc-400 mt-0.5 flex items-center gap-1.5">
-            <Calendar size={9} className="shrink-0"/>
-            {new Date(report.createdAt || report.generatedAt).toLocaleDateString()}&nbsp;&nbsp;•&nbsp;&nbsp;
-            <span className="text-purple-400">{(report.model || selectedModel)?.toUpperCase()}</span>
-          </p>
-        </div>
-      </div>
-      <ChevronRight size={15} className="text-zinc-300 group-hover:text-purple-500 group-hover:translate-x-0.5 transition-all shrink-0" />
-    </button>
-  );
+  const l = LEVEL[rec.level] || LEVEL.good;
+  const LIcon = l.icon;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="absolute inset-0 bg-black/50 backdrop-blur-md"
-      />
+    <AnimatePresence>
+      <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          onClick={onClose}
+          className="absolute inset-0 bg-black/50 backdrop-blur-md"
+        />
 
-      <motion.div
-        initial={{ scale: 0.92, opacity: 0, y: 16 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
-        transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-        className="relative w-full max-w-xl bg-white dark:bg-[#111113] border border-zinc-200 dark:border-zinc-800 rounded-[28px] overflow-hidden shadow-2xl flex flex-col max-h-[88vh]"
-      >
-        {/* ── Header ── */}
-        <div className="px-6 pt-6 pb-4 border-b border-zinc-100 dark:border-zinc-800/80 flex items-start justify-between shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-purple-600 to-violet-700 flex items-center justify-center shadow-lg shadow-purple-500/20">
-              <BrainCircuit className="text-white" size={19} />
-            </div>
-            <div>
-              <h3 className="text-[16px] font-black tracking-tight text-zinc-900 dark:text-white leading-none">System Analysis</h3>
-              <div className="flex items-center gap-1.5 mt-1.5">
-                {['current', 'history'].map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => {
-                      setView(tab);
-                      setSelectedHistoryReport(null);
-                      if (tab === 'current') setCurrentMode('card');
-                    }}
-                    className={`text-[9px] font-black uppercase tracking-[0.12em] px-2.5 py-1 rounded-lg transition-all ${
-                      view === tab
-                        ? 'bg-purple-600 text-white'
-                        : 'text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 bg-zinc-100 dark:bg-zinc-800/60'
-                    }`}
-                  >
-                    {tab}
-                  </button>
-                ))}
+        <motion.div
+          initial={{ scale: 0.95, opacity: 0, y: 14 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.96, opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+          className="relative w-full max-w-md bg-white dark:bg-[#111113] border border-zinc-200 dark:border-zinc-800 rounded-[26px] shadow-2xl overflow-hidden flex flex-col max-h-[88vh]"
+        >
+          {/* Header */}
+          <div className="flex items-start justify-between gap-4 px-6 pt-6 pb-5">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-purple-600 to-violet-700 flex items-center justify-center shadow-md shadow-purple-500/20 shrink-0">
+                <BrainCircuit className="text-white" size={18} />
               </div>
+              <p className="text-[12.5px] text-zinc-500 dark:text-zinc-400 leading-snug max-w-[230px]">
+                An AI summary of your debugging activity — and what to study next.
+              </p>
             </div>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all shrink-0"
+            >
+              <X size={15} />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all"
-          >
-            <X size={15} />
-          </button>
-        </div>
 
-        {/* ── Body ── */}
-        <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-700">
-          <AnimatePresence mode="wait">
+          {/* Body */}
+          <div className="px-6 pb-6 space-y-5 overflow-y-auto scrollbar-thin">
+            {isGeneratingReport ? (
+              <div className="py-14 flex flex-col items-center justify-center gap-4">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-purple-500/25 blur-2xl rounded-full animate-pulse scale-150" />
+                  <div className="relative w-14 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
+                    <Loader2 className="animate-spin text-purple-500" size={24} />
+                  </div>
+                </div>
+                <p className="text-[12px] font-semibold text-zinc-900 dark:text-white uppercase tracking-widest">Creating report</p>
+                <p className="text-[11px] text-zinc-400">Mapping your diagnostic patterns…</p>
+              </div>
+            ) : (
+              <>
+                {/* Timing + quota */}
+                <div className="rounded-2xl border border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/40 p-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className={`w-8 h-8 rounded-lg ${l.bg} ${l.text} flex items-center justify-center shrink-0`}>
+                      <LIcon size={16} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-[11px] font-semibold uppercase tracking-wider ${l.text}`}>{l.label}</p>
+                      <p className="text-[12px] text-zinc-500 dark:text-zinc-400 leading-relaxed mt-1">{rec.message}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 pt-2.5 border-t border-zinc-100 dark:border-zinc-700/60 text-[9px] font-semibold uppercase tracking-widest text-zinc-400">
+                    <span>Today {rs.dailyUsed ?? 0}/{rs.dailyLimit ?? 1}</span>
+                    <span>This week {rs.weeklyUsed ?? 0}/{rs.weeklyLimit ?? 2}</span>
+                    <span className="ml-auto normal-case tracking-normal">Resets 12:30 PM IST</span>
+                  </div>
+                </div>
 
-            {/* ═══════════ HISTORY TAB ═══════════ */}
-            {view === 'history' ? (
-              <motion.div
-                key={selectedHistoryReport ? 'hist-detail' : 'hist-list'}
-                initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }}
-                className="space-y-4"
-              >
-                {selectedHistoryReport ? (
-                  <div className="space-y-5">
-                    <button
-                      onClick={() => setSelectedHistoryReport(null)}
-                      className="flex items-center gap-1.5 text-[10px] font-black text-zinc-400 uppercase tracking-widest hover:text-zinc-900 dark:hover:text-white transition-colors"
-                    >
-                      <ArrowLeft size={12} /> Archive
-                    </button>
+                {error && (
+                  <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-100 dark:border-rose-500/20 text-rose-600 dark:text-rose-400 text-[11px] font-medium text-center">
+                    {error}
+                  </div>
+                )}
 
-                    <div className="flex items-center justify-between p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-700">
-                      <div className="flex items-center gap-2 text-zinc-500">
-                        <Clock size={12} />
-                        <span className="text-[11px] font-bold">
-                          {new Date(selectedHistoryReport.createdAt).toLocaleDateString(undefined, { dateStyle: 'long' })}
-                        </span>
-                      </div>
-                      <span className="text-[9px] font-black text-purple-500 uppercase tracking-widest bg-purple-500/10 px-2.5 py-1 rounded-lg">
-                        {selectedHistoryReport.model}
+                <button
+                  onClick={handleGenerate}
+                  disabled={isGeneratingReport || !canGenerate}
+                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-500 hover:to-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white flex items-center justify-center gap-2 text-[13px] font-semibold transition-all shadow-lg shadow-purple-500/25 active:scale-[0.98]"
+                >
+                  {hasReport ? <RotateCcw size={15} /> : <Sparkles size={15} />}
+                  {hasReport ? 'Regenerate report' : 'Generate report'}
+                </button>
+
+                {/* Featured latest report */}
+                {latest && (
+                  <button
+                    onClick={() => goToReport(latest._id)}
+                    className="w-full text-left group rounded-2xl border border-purple-500/20 bg-purple-500/[0.04] dark:bg-purple-500/[0.06] p-5 hover:border-purple-500/40 transition-all"
+                  >
+                    <div className="flex items-center justify-between mb-2.5">
+                      <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-purple-500">
+                        <Sparkles size={11} /> Latest report
+                      </span>
+                      <span className="flex items-center gap-1 text-[10px] font-semibold text-purple-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                        Open <ArrowUpRight size={12} />
                       </span>
                     </div>
-
-                    <div className="prose prose-zinc dark:prose-invert max-w-none prose-p:text-[13.5px] prose-p:leading-relaxed prose-strong:text-purple-600 prose-strong:font-black prose-headings:font-black">
-                      <ReactMarkdown>{selectedHistoryReport.content}</ReactMarkdown>
+                    <p className="text-[15px] font-semibold text-zinc-900 dark:text-white">{fmtDate(latest.createdAt)}</p>
+                    <div className="flex items-center gap-3 mt-2.5 text-[10px] font-medium text-zinc-500 flex-wrap">
+                      {latest.statsSnapshot?.topCategory && (
+                        <span className="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 uppercase tracking-wide text-zinc-500">{latest.statsSnapshot.topCategory}</span>
+                      )}
+                      <span>{latest.statsSnapshot?.confirmedFixes ?? 0} fixes</span>
+                      {latest.learningPaths?.length > 0 && (
+                        <span className="flex items-center gap-1"><BookOpen size={10} /> {latest.learningPaths.length}</span>
+                      )}
+                      {latest.skillGaps?.length > 0 && (
+                        <span className="flex items-center gap-1"><GraduationCap size={10} /> {latest.skillGaps.length}</span>
+                      )}
                     </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Diagnostic Archive</span>
+                  </button>
+                )}
+
+                {/* Earlier — compact list */}
+                {history.length > 1 && (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between px-1 mb-1">
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Earlier</p>
                       <button
-                        onClick={() => { onClose(); navigate('/analytics/reports'); }}
-                        className="flex items-center gap-1 text-[10px] font-bold text-purple-500 hover:text-purple-400 uppercase tracking-widest transition-colors group"
+                        onClick={() => goToReport()}
+                        className="flex items-center gap-1 text-[10px] font-semibold text-purple-500 hover:text-purple-400 uppercase tracking-wider transition-colors group"
                       >
-                        Full Archive <ArrowRight size={10} className="group-hover:translate-x-0.5 transition-transform" />
+                        View all <ArrowRight size={11} className="group-hover:translate-x-0.5 transition-transform" />
                       </button>
                     </div>
-
-                    {isFetchingHistory ? (
-                      <div className="py-16 flex flex-col items-center gap-3">
-                        <Loader2 className="animate-spin text-zinc-300" size={24} />
-                        <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Loading archive...</p>
-                      </div>
-                    ) : neuralHistory.length === 0 ? (
-                      <div className="py-14 text-center space-y-3">
-                        <History className="mx-auto text-zinc-200 dark:text-zinc-700" size={36} />
-                        <p className="text-[12px] font-medium text-zinc-400">No archived reports yet.</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        {neuralHistory.map((r) => (
-                          <ReportRowCard key={r._id} report={r} onClick={() => setSelectedHistoryReport(r)} />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </motion.div>
-
-            /* ═══════════ CURRENT: EMPTY ═══════════ */
-            ) : !neuralReport && !isGeneratingReport ? (
-              <motion.div
-                key="empty"
-                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                className="space-y-6"
-              >
-                <div className="text-center space-y-2 pt-2">
-                  <div className="w-14 h-14 rounded-2xl bg-purple-500/10 flex items-center justify-center mx-auto mb-4">
-                    <Sparkles className="text-purple-500" size={24} />
-                  </div>
-                  <h4 className="text-[16px] font-black text-zinc-900 dark:text-white tracking-tight">Create your debugging summary</h4>
-                  <p className="text-[12.5px] text-zinc-500 dark:text-zinc-400 max-w-xs mx-auto leading-relaxed">
-                    Our AI analyzes your session history, error patterns, and resolution speed to build a personalized summary report.
-                  </p>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-100 dark:border-zinc-700 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-zinc-500">
-                      <Cpu size={13} />
-                      <span className="text-[10px] font-black uppercase tracking-widest">AI Model</span>
-                    </div>
-                    <ModelSelector />
-                  </div>
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">Daily Quota</span>
-                      <span className={`text-[9px] font-black uppercase tracking-widest ${quotaColor}`}>{modelUsed}/{effectiveLimit} used</span>
-                    </div>
-                    <QuotaBar />
-                  </div>
-                </div>
-
-                {error && (
-                  <div className="p-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-red-600 dark:text-red-400 text-[11px] font-bold text-center">
-                    {error}
+                    {history.slice(1, 4).map((r) => (
+                      <button
+                        key={r._id}
+                        onClick={() => goToReport(r._id)}
+                        className="w-full flex items-center justify-between gap-3 px-2.5 py-2.5 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all group"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 shrink-0">
+                            <FileText size={14} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[12.5px] font-medium text-zinc-700 dark:text-zinc-200 truncate">{fmtDate(r.createdAt)}</p>
+                            {r.statsSnapshot?.topCategory && (
+                              <p className="text-[10px] text-zinc-400 truncate">{r.statsSnapshot.topCategory}</p>
+                            )}
+                          </div>
+                        </div>
+                        <ArrowUpRight size={13} className="text-zinc-300 dark:text-zinc-600 group-hover:text-purple-500 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all shrink-0" />
+                      </button>
+                    ))}
                   </div>
                 )}
 
-                <button
-                  onClick={() => handleGenerate(false)}
-                  disabled={isGeneratingReport || modelUsed >= effectiveLimit}
-                  className="w-full py-3.5 bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-500 hover:to-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-2xl flex items-center justify-center gap-2.5 text-[13px] font-black uppercase tracking-widest transition-all shadow-lg shadow-purple-500/25 active:scale-[0.98]"
-                >
-                  <Sparkles size={15} />
-                  Generate Summary Report
-                </button>
-              </motion.div>
-
-            /* ═══════════ CURRENT: LOADING ═══════════ */
-            ) : isGeneratingReport ? (
-              <motion.div
-                key="loading"
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                className="py-16 flex flex-col items-center justify-center space-y-5"
-              >
-                <div className="relative">
-                  <div className="absolute inset-0 bg-purple-500/30 blur-3xl rounded-full animate-pulse scale-150" />
-                  <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-600/20 to-violet-600/20 border border-purple-500/20 flex items-center justify-center">
-                    <Loader2 className="animate-spin text-purple-500" size={28} />
-                  </div>
-                </div>
-                <div className="text-center space-y-1.5">
-                  <p className="text-[12px] font-black text-zinc-900 dark:text-white uppercase tracking-[0.18em]">Creating Report</p>
-                  <p className="text-[11px] text-zinc-400 font-medium">AI is mapping your diagnostic patterns...</p>
-                </div>
-                <div className="flex gap-1.5">
-                  {[0, 1, 2].map((i) => (
-                    <div key={i} className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
-                  ))}
-                </div>
-              </motion.div>
-
-            /* ═══════════ CURRENT: REGENERATE PANEL ═══════════ */
-            ) : currentMode === 'regenerate' ? (
-              <motion.div
-                key="regenerate"
-                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                className="space-y-5"
-              >
-                <button
-                  onClick={() => setCurrentMode('card')}
-                  className="flex items-center gap-1.5 text-[10px] font-black text-zinc-400 uppercase tracking-widest hover:text-zinc-900 dark:hover:text-white transition-colors"
-                >
-                  <ArrowLeft size={12} /> Back
-                </button>
-
-                <div className="text-center space-y-1.5">
-                  <h4 className="text-[15px] font-black text-zinc-900 dark:text-white tracking-tight">Renew Analysis</h4>
-                  <p className="text-[12px] text-zinc-500 max-w-xs mx-auto">Choose your model and generate a fresh report using today's activity.</p>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-zinc-50 dark:bg-zinc-800/60 border border-zinc-100 dark:border-zinc-700 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-zinc-500">
-                      <Cpu size={13} />
-                      <span className="text-[10px] font-black uppercase tracking-widest">AI Model</span>
-                    </div>
-                    <ModelSelector />
-                  </div>
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">Daily Quota — {selectedModel}</span>
-                      <span className={`text-[9px] font-black uppercase tracking-widest ${quotaColor}`}>{modelUsed}/{effectiveLimit} used</span>
-                    </div>
-                    <QuotaBar />
-                  </div>
-                </div>
-
-                {error && (
-                  <div className="p-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-red-600 dark:text-red-400 text-[11px] font-bold text-center">
-                    {error}
-                  </div>
+                {!latest && history.length === 0 && (
+                  <p className="text-center text-[11px] text-zinc-400 py-2">No reports yet — generate your first to see insights and a learning path.</p>
                 )}
-
-                <button
-                  onClick={() => handleGenerate(true)}
-                  disabled={isGeneratingReport || modelUsed >= effectiveLimit}
-                  className="w-full py-3.5 bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-500 hover:to-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-2xl flex items-center justify-center gap-2.5 text-[13px] font-black uppercase tracking-widest transition-all shadow-lg shadow-purple-500/25 active:scale-[0.98]"
-                >
-                  <RotateCcw size={15} />
-                  Regenerate Now
-                </button>
-              </motion.div>
-
-            /* ═══════════ CURRENT: READER ═══════════ */
-            ) : currentMode === 'reader' ? (
-              <motion.div
-                key="reader"
-                initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-                className="space-y-5"
-              >
-                <div className="flex items-center justify-between">
-                  <button
-                    onClick={() => setCurrentMode('card')}
-                    className="flex items-center gap-1.5 text-[10px] font-black text-zinc-400 uppercase tracking-widest hover:text-zinc-900 dark:hover:text-white transition-colors"
-                  >
-                    <ArrowLeft size={12} /> Back
-                  </button>
-                  <div className="flex items-center gap-3 text-[9px] font-bold uppercase tracking-widest">
-                    <span className="text-purple-400">{reportModel || selectedModel}</span>
-                    {reportDate && <span className="text-zinc-400">{new Date(reportDate).toLocaleDateString()}</span>}
-                  </div>
-                </div>
-
-                <div className="prose prose-zinc dark:prose-invert max-w-none
-                  prose-p:text-[13.5px] prose-p:leading-relaxed prose-p:text-zinc-600 dark:prose-p:text-zinc-400
-                  prose-headings:text-zinc-900 dark:prose-headings:text-zinc-100 prose-headings:font-black prose-headings:tracking-tight
-                  prose-headings:mt-7 first:prose-headings:mt-0
-                  prose-strong:text-purple-600 dark:prose-strong:text-purple-400 prose-strong:font-black
-                  prose-hr:border-zinc-100 dark:prose-hr:border-zinc-800"
-                >
-                  <ReactMarkdown>{neuralReport}</ReactMarkdown>
-                </div>
-              </motion.div>
-
-            /* ═══════════ CURRENT: SUMMARY CARD ═══════════ */
-            ) : (
-              <motion.div
-                key="card"
-                initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }}
-                className="space-y-4"
-              >
-                {/* The compact report row card */}
-                <ReportRowCard
-                  report={{ createdAt: reportDate || new Date(), model: reportModel || selectedModel }}
-                  onClick={() => setCurrentMode('reader')}
-                />
-
-                {/* Status + actions bar */}
-                <div className="flex items-center justify-between px-1">
-                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-500 uppercase tracking-widest">
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    Active
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => setCurrentMode('regenerate')}
-                      className="flex items-center gap-1.5 text-[10px] font-black text-zinc-400 hover:text-purple-500 uppercase tracking-widest transition-colors"
-                    >
-                      <RotateCcw size={10} /> Regenerate
-                    </button>
-                    <div className="w-px h-3 bg-zinc-200 dark:bg-zinc-700" />
-                    <button
-                      onClick={() => { onClose(); navigate('/analytics/reports'); }}
-                      className="flex items-center gap-1 text-[10px] font-black text-purple-500 hover:text-purple-400 uppercase tracking-widest transition-colors group"
-                    >
-                      Archive <ArrowRight size={9} className="group-hover:translate-x-0.5 transition-transform" />
-                    </button>
-                    <div className="w-px h-3 bg-zinc-200 dark:bg-zinc-700" />
-                    <span className={`text-[9px] font-black uppercase tracking-widest ${quotaColor}`}>
-                      {modelUsed}/{effectiveLimit}
-                    </span>
-                  </div>
-                </div>
-              </motion.div>
+              </>
             )}
-
-          </AnimatePresence>
-        </div>
-      </motion.div>
-    </div>
+          </div>
+        </motion.div>
+      </div>
+    </AnimatePresence>
   );
 };
 

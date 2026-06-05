@@ -1,15 +1,25 @@
 import React from 'react';
 import { Sun, Moon } from 'lucide-react';
 import { useThemeStore } from '../../store/themeStore';
+import useAuthStore from '../../store/authStore';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const ThemeToggle = () => {
   const { theme, toggleTheme } = useThemeStore();
 
+  const handleToggle = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    toggleTheme(); // local store is the runtime source of truth (wins on refresh)
+    // Keep the account preference linked (best-effort, only when signed in).
+    if (useAuthStore.getState().token) {
+      useAuthStore.getState().updateProfile({ preferences: { theme: next } }).catch(() => {});
+    }
+  };
+
   return (
     <button
-      onClick={toggleTheme}
-      className="relative p-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-emerald-400 hover:ring-2 hover:ring-emerald-500/20 transition-all duration-200 focus:outline-none"
+      onClick={handleToggle}
+      className="relative p-1.5 rounded-lg text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors focus:outline-none"
       aria-label="Toggle Theme"
     >
       <div className="relative w-5 h-5 flex items-center justify-center overflow-hidden">

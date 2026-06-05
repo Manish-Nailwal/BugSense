@@ -71,6 +71,46 @@ const useLibraryStore = create((set) => ({
     } catch (error) {
       console.error('Failed to fetch tags:', error);
     }
+  },
+
+  // Flip a blog's author identity (show name <-> anonymous).
+  updateArticleIdentity: async (id, authorDisplay) => {
+    const token = localStorage.getItem('token');
+    try {
+      const { data } = await axios.patch(
+        `${API_URL}/api/library/${id}`,
+        { authorDisplay },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const next = data.data.authorDisplay;
+      set((state) => ({
+        myArticles: state.myArticles.map((a) =>
+          a._id === id ? { ...a, authorDisplay: next } : a
+        )
+      }));
+      return next;
+    } catch (error) {
+      console.error('Failed to update blog identity:', error);
+      throw error;
+    }
+  },
+
+  // Unpublish (delete) one of the user's own articles.
+  deleteArticle: async (id) => {
+    const token = localStorage.getItem('token');
+    try {
+      await axios.delete(`${API_URL}/api/library/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      set((state) => ({
+        myArticles: state.myArticles.filter((a) => a._id !== id),
+        articles: state.articles.filter((a) => a._id !== id)
+      }));
+      return true;
+    } catch (error) {
+      console.error('Failed to unpublish article:', error);
+      throw error;
+    }
   }
 }));
 

@@ -1,82 +1,102 @@
 import React from "react";
 import useDebugStore from "../../store/debugStore";
-import { Plus, Send, Activity } from "lucide-react";
-import ModelSelector from "./ModelSelector";
+import { Send, Zap } from "lucide-react";
+import AttachMenu, { ModeBadge } from "./AttachMenu";
+import { MAX_INPUT_CHARS, INPUT_WARN_AT } from "../../config/limits";
 
 /**
- * Ultra-compact Claude/ChatGPT style input component.
+ * Claude/ChatGPT-style composer. Compact when empty, grows as you type.
+ * Model is auto-selected; the "+" menu adds context / toggles Deep Mode.
  */
 const ErrorInput = () => {
-  const { 
-    errorInput, 
-    setErrorInput, 
-    isStreaming, 
-    startAnalysis, 
-    sessionId,
-    selectedModel,
-    quotaCounts
+  const {
+    errorInput,
+    setErrorInput,
+    isStreaming,
+    startAnalysis,
+    deepMode,
+    quota,
   } = useDebugStore();
 
-  const currentLimit = selectedModel.startsWith("Gemma") ? 14000 : 20;
-  const isLimitReached = (quotaCounts[selectedModel] || 0) >= currentLimit;
+  // Standard mode gates on the shared daily pool; Deep Mode has its own allowance.
+  const blocked = !deepMode && quota?.normal && !quota.normal.available;
+  const canSend = !!errorInput.trim() && !isStreaming && !blocked;
 
   const handleSend = () => {
-    if (!isLimitReached) startAnalysis();
+    if (canSend) startAnalysis();
   };
 
+  const handleAttach = (text) => {
+    const combined = errorInput ? `${errorInput}\n\n${text}` : text;
+    setErrorInput(combined.slice(0, MAX_INPUT_CHARS));
+  };
+
+  const nearLimit = errorInput.length >= INPUT_WARN_AT;
+
   return (
-    <div className="flex flex-col w-full bg-[#f9f9f9] dark:bg-[#111111] border border-zinc-200 dark:border-zinc-800 rounded-[28px] focus-within:border-zinc-300 dark:focus-within:border-zinc-700 transition-all p-2 shadow-sm">
-      {/* TextArea Area */}
-      <div className="relative flex flex-col px-4 pt-4 pb-1">
-        <textarea
-          value={errorInput}
-          onChange={(e) => setErrorInput(e.target.value)}
-          placeholder="Paste your system logs or error messages here..."
-          disabled={isStreaming}
-          rows={1}
-          className="w-full bg-transparent font-sans text-[15px] resize-none focus:outline-none text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-400 dark:placeholder:text-zinc-600 leading-relaxed min-h-[60px] max-h-[400px] scrollbar-none"
-          style={{ height: 'auto' }}
-          onInput={(e) => {
-            e.target.style.height = 'auto';
-            e.target.style.height = e.target.scrollHeight + 'px';
-          }}
-        />
-      </div>
+    <div
+      className={`flex flex-col w-full rounded-[26px] border bg-[#fafafa] dark:bg-[#151517] shadow-sm transition-colors p-2 ${
+        deepMode
+          ? "border-amber-500/40"
+          : "border-zinc-200 dark:border-zinc-800"
+      }`}
+    >
+      {/* Input */}
+      <textarea
+        value={errorInput}
+        onChange={(e) => setErrorInput(e.target.value.slice(0, MAX_INPUT_CHARS))}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            handleSend();
+          }
+        }}
+        placeholder="Describe a bug, or paste an error / stack trace…"
+        disabled={isStreaming}
+        maxLength={MAX_INPUT_CHARS}
+        rows={1}
+        className="w-full bg-transparent text-[15px] resize-none focus:outline-none text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-600 leading-relaxed px-3 pt-2.5 pb-1.5 min-h-[44px] max-h-[220px] overflow-y-auto scrollbar-thin"
+        style={{ height: "auto" }}
+        onInput={(e) => {
+          e.target.style.height = "auto";
+          // Grow up to ~9 lines, then scroll inside instead of growing forever.
+          e.target.style.height = Math.min(e.target.scrollHeight, 220) + "px";
+        }}
+      />
 
-      {/* Bottom Controls Area */}
-      <div className="flex items-center justify-between px-2 pb-1">
-        <div className="flex items-center gap-1">
-          <button className="p-2 rounded-full text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-all">
-            <Plus size={20} />
-          </button>
-        </div>
+      {/* Controls */}
+      <div className="flex items-center justify-between gap-2 px-1">
+        <AttachMenu position="up" onAttachText={handleAttach} />
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-             {/* Character Count - Minimalist */}
-             {errorInput.length > 0 && (
-               <span className="text-[10px] font-medium text-zinc-400 dark:text-zinc-600 tabular-nums uppercase tracking-widest mr-2">
-                 {errorInput.length} / 5000
-               </span>
-             )}
-             
-             {/* Model Selector - Positioned like Claude */}
-             <ModelSelector />
-          </div>
+        <div className="flex items-center gap-2.5">
+          {nearLimit && (
+            <span
+              className={`text-[10px] font-semibold tabular-nums tracking-wide ${
+                errorInput.length >= MAX_INPUT_CHARS ? "text-rose-500" : "text-amber-500"
+              }`}
+            >
+              {errorInput.length}/{MAX_INPUT_CHARS}
+            </span>
+          )}
+
+          <ModeBadge />
 
           <button
             onClick={handleSend}
-            disabled={isStreaming || !errorInput.trim() || isLimitReached}
-            className={`p-2.5 rounded-full transition-all flex items-center justify-center shadow-md active:scale-95 disabled:opacity-20 disabled:grayscale ${
-              sessionId
-                ? "bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900"
-                : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-500/10"
+            disabled={!canSend}
+            data-tooltip={blocked ? "Daily limit reached — resets at 12:30 PM IST" : "Send"}
+            className={`h-9 w-9 rounded-full flex items-center justify-center transition-all active:scale-95 shadow-sm disabled:opacity-25 disabled:cursor-not-allowed ${
+              deepMode
+                ? "bg-gradient-to-br from-amber-500 to-orange-600 text-white hover:from-amber-400 hover:to-orange-500"
+                : "bg-zinc-900 dark:bg-white text-white dark:text-zinc-950 hover:opacity-90"
             }`}
           >
             {isStreaming ? (
-              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <div className="w-4 h-4 border-2 border-white/30 border-t-white dark:border-zinc-950/30 dark:border-t-zinc-950 rounded-full animate-spin" />
+            ) : deepMode ? (
+              <Zap size={16} className="fill-current" />
             ) : (
-              <Send size={18} />
+              <Send size={16} />
             )}
           </button>
         </div>

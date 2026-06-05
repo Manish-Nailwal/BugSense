@@ -17,7 +17,7 @@ app.use(helmet());
 const allowedOrigins = [
   process.env.FRONTEND_URL,
   'http://localhost:5173',
-  'https://bugsense.pages.dev'
+  'https://trace.manishlabs.com'
 ].filter(Boolean);
 
 app.use(cors({
@@ -60,7 +60,7 @@ app.use('/api/library', libraryRoutes);
 
 // Root API route
 app.get('/api', (req, res) => {
-  res.json({ message: 'Welcome to BugSense API' });
+  res.json({ message: 'Welcome to Trace API' });
 });
 
 // Global Error Handler

@@ -14,8 +14,10 @@ const useAnalyticsStore = create((set, get) => ({
   },
   neuralReport: null,
   neuralHistory: [],
-  quotaCounts: {}, // raw per-model counts from server
-  quota: { current: 0, limit: 20 },
+  learningArchive: null,
+  isFetchingArchive: false,
+  // Standard daily pool usage (model is chosen server-side now).
+  normalQuota: { used: 0, limit: 500, usable: 450, reserve: 50, available: true },
   isGeneratingReport: false,
   isFetchingHistory: false,
 
@@ -26,9 +28,7 @@ const useAnalyticsStore = create((set, get) => ({
       const { data } = await axios.get(`${API_URL}/api/debug/quota`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      // Store raw per-model counts; modal reads per-selected-model quota 
-      const counts = data.data;
-      set({ quotaCounts: counts });
+      if (data.data?.normal) set({ normalQuota: data.data.normal });
     } catch (error) {
       console.error('Quota fetch error:', error);
     }
@@ -49,13 +49,29 @@ const useAnalyticsStore = create((set, get) => ({
     }
   },
 
-  generateNeuralReport: async (selectedModel, force = false) => {
+  // Read-only archive of every unique recommended skill + learning path.
+  fetchLearningArchive: async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    set({ isFetchingArchive: true });
+    try {
+      const { data } = await axios.get(`${API_URL}/api/analytics/learning`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      set({ learningArchive: data.data, isFetchingArchive: false });
+    } catch (error) {
+      set({ isFetchingArchive: false });
+    }
+  },
+
+  generateNeuralReport: async (force = false) => {
     const token = localStorage.getItem('token');
     if (!token) return;
 
     set({ isGeneratingReport: true, neuralReport: null, error: null });
     try {
-      const { data } = await axios.post(`${API_URL}/api/analytics/report`, { selectedModel, force }, {
+      const { data } = await axios.post(`${API_URL}/api/analytics/report`, { force }, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -81,22 +97,44 @@ const useAnalyticsStore = create((set, get) => ({
 
     set({ isLoading: true, error: null });
     try {
-      let data;
       if (forceRefresh) {
+        // Recompute = ONLY the stat cards + Error Types chart. Merge the fresh
+        // computed stats into the existing summary and PRESERVE the AI-driven
+        // sections (recommended skills, learning paths, report) so they don't
+        // clear or flicker.
         const response = await axios.post(`${API_URL}/api/analytics/refresh`, {}, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        data = response.data;
-      } else {
-        const response = await axios.get(`${API_URL}/api/analytics/summary`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        data = response.data;
+        const stats = response.data.data;
+        set((state) => ({
+          summary: state.summary
+            ? {
+                ...state.summary,
+                totalSessions: stats.totalSessions,
+                totalQueries: stats.totalQueries,
+                confirmedFixes: stats.confirmedFixes,
+                efficiency: stats.efficiency,
+                topCategory: stats.topCategory,
+                queryLimit: stats.queryLimit,
+                categoryStats: stats.categoryStats,
+                weeklyTrend: stats.weeklyTrend,
+                skillGapAlerts: stats.skillGapAlerts,
+                lastManualUpdate: stats.lastManualUpdate,
+              }
+            : stats,
+          isLoading: false,
+        }));
+        return;
       }
-      set({ 
-        summary: data.data, 
+
+      const response = await axios.get(`${API_URL}/api/analytics/summary`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = response.data;
+      set({
+        summary: data.data,
         neuralReport: data.data.neuralReport?.content || null,
-        isLoading: false 
+        isLoading: false
       });
     } catch (error) {
       set({ 

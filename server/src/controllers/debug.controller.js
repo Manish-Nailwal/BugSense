@@ -2,21 +2,100 @@ import DebugSession from "../models/DebugSession.model.js";
 import User from "../models/User.model.js";
 import LibraryArticle from "../models/LibraryArticle.model.js";
 import ApiQuota from "../models/ApiQuota.model.js";
-import { streamDebugAnalysis } from "../services/gemini.service.js";
+import { streamDebugAnalysis, summarizeConversation, safeWrite } from "../services/gemini.service.js";
 import { mockDebugAnalysis } from "../services/mock.service.js";
 import { generateArticle } from "../services/article.service.js";
+import { stripMeta } from "../utils/text.js";
+import { reserveInputTokens } from "../utils/rateLimiter.js";
+import {
+  NORMAL_MODEL,
+  NORMAL_MODEL_KEY,
+  DEEP_MODEL_KEY,
+  DEEP_FALLBACK_MODEL_KEY,
+  DEEP_FALLBACK_DAILY_LIMIT,
+  NORMAL_DAILY_LIMIT,
+  NORMAL_USABLE_LIMIT,
+  NORMAL_DAILY_RESERVE,
+  DEEP_DAILY_LIMIT,
+  DEEP_USER_DAILY_LIMIT,
+  CONTEXT_WINDOW,
+  SUMMARY_TRIGGER,
+  MAX_TURN_CHARS,
+  MAX_SUMMARY_CHARS,
+  getQuotaDate,
+  pickDeepModel,
+} from "../config/gemini.js";
+
+// Rough estimate of the input tokens a request will send to the model,
+// mirroring how the service truncates each turn / the summary.
+const SYSTEM_TOKENS_EST = 700;
+const estimateInputTokens = (priorTurns, summary, input) => {
+  let chars = Math.min((summary || "").length, MAX_SUMMARY_CHARS) + (input || "").length;
+  for (const m of priorTurns) {
+    chars += Math.min((m.content || "").length, MAX_TURN_CHARS);
+  }
+  return SYSTEM_TOKENS_EST + Math.ceil(chars / 4);
+};
+
+/**
+ * Builds the model context for a follow-up from the DB (source of truth):
+ * keeps the last CONTEXT_WINDOW turns verbatim and folds anything older into a
+ * lazily-refreshed rolling summary stored on the session.
+ * @returns {Promise<{ priorTurns: Array, contextSummary: string }>}
+ */
+const buildConversationContext = async (session) => {
+  const msgs = session.messages || [];
+  let contextSummary = session.contextSummary || "";
+
+  if (msgs.length <= SUMMARY_TRIGGER) {
+    return { priorTurns: msgs, contextSummary: "" };
+  }
+
+  const keepFrom = msgs.length - CONTEXT_WINDOW; // index where verbatim window starts
+  let summarizedTurns = session.summarizedTurns || 0;
+
+  // New turns have slid out of the window since we last summarized — fold them in.
+  if (summarizedTurns < keepFrom) {
+    const newlyOlder = msgs.slice(summarizedTurns, keepFrom);
+    contextSummary = await summarizeConversation(newlyOlder, contextSummary, NORMAL_MODEL);
+    summarizedTurns = keepFrom;
+    await DebugSession.updateOne(
+      { _id: session._id },
+      { contextSummary, summarizedTurns },
+    );
+  }
+
+  return { priorTurns: msgs.slice(keepFrom), contextSummary };
+};
+
+// Fetch (or lazily create) today's global quota document.
+const getTodayQuota = async () => {
+  const today = getQuotaDate();
+  return ApiQuota.findOneAndUpdate(
+    { date: today },
+    {
+      $setOnInsert: {
+        date: today,
+        counts: { [NORMAL_MODEL_KEY]: 0, [DEEP_MODEL_KEY]: 0 },
+      },
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true },
+  );
+};
+
+// Is *any* deep pool still available globally today?
+const deepGlobalAvailable = (counts) => pickDeepModel(counts) !== null;
+
+// How many Deep Mode requests a user has spent *today* (resets across days).
+const deepUsedToday = (user, today) =>
+  user?.deepUsage?.date === today ? user.deepUsage.count || 0 : 0;
 
 // @desc    Analyze an error and stream response
 // @route   POST /api/debug/analyze
 // @access  Private
 export const analyzeError = async (req, res) => {
-  const {
-    errorLog,
-    history,
-    sessionId,
-    selectedModel: rawModel = "Gemma 3 12B",
-  } = req.body;
-  const selectedModel = rawModel.replace(/\./g, "_");
+  const { errorLog, sessionId, deepMode: rawDeep = false } = req.body;
+  const deepMode = !!rawDeep;
 
   if (!errorLog) {
     return res
@@ -25,49 +104,108 @@ export const analyzeError = async (req, res) => {
   }
 
   try {
-    // 0. Check and Update Daily Quota (Resets at Midnight Pacific Time)
-    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-    
-    // Using findOneAndUpdate with upsert to prevent race conditions
-    let quota = await ApiQuota.findOneAndUpdate(
-      { date: today },
-      { $setOnInsert: { 
-          date: today,
-          counts: { "Gemini 3 Flash": 0, "Gemini 2_5 Flash": 0, "Gemma 3 4B": 0, "Gemma 3 12B": 0 }
-        } 
-      },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
+    const today = getQuotaDate();
+    const quota = await getTodayQuota();
+    const isFollowUp = !!sessionId;
 
-    const currentCount = quota.counts.get(selectedModel) || 0;
-    const modelLimit = rawModel.toLowerCase().startsWith("gemma") ? 14000 : 20;
+    // 0a. Build conversation context from the DB (source of truth):
+    //     last CONTEXT_WINDOW turns verbatim + a rolling summary of older ones.
+    let priorTurns = [];
+    let contextSummary = "";
+    if (isFollowUp) {
+      const sessionDoc = await DebugSession.findOne({
+        _id: sessionId,
+        userId: req.user._id,
+      });
+      if (sessionDoc) {
+        const ctx = await buildConversationContext(sessionDoc);
+        priorTurns = ctx.priorTurns;
+        contextSummary = ctx.contextSummary;
+      }
+    }
 
-    if (currentCount >= modelLimit) {
+    // 0b. Stay under the API's input tokens-per-minute limit (self-throttle
+    //     BEFORE touching daily quota or opening the SSE stream).
+    const estInput = estimateInputTokens(priorTurns, contextSummary, errorLog);
+    const reservation = reserveInputTokens(estInput);
+    if (!reservation.ok) {
+      const secs = Math.max(1, Math.ceil(reservation.retryAfterMs / 1000));
+      res.set("Retry-After", String(secs));
       return res.status(429).json({
         success: false,
-        message: `Daily limit (${modelLimit}) reached for ${rawModel}. Resets at 12:30 PM IST.`,
-        code: "QUOTA_EXCEEDED",
+        code: "RATE_LIMITED",
+        message: `Trace is at its per-minute capacity. Please retry in ~${secs}s.`,
       });
     }
 
-    // Increment quota early to prevent race conditions (simplified)
-    quota.counts.set(selectedModel, currentCount + 1);
-    await quota.save();
+    // 0c. Daily quota (Resets at Pacific midnight). Model is chosen server-side.
+    let modelName = NORMAL_MODEL;
+
+    if (deepMode) {
+      // (a) Per-user allowance: 1 Deep Mode request / day.
+      const userUsed = deepUsedToday(req.user, today);
+      if (userUsed >= DEEP_USER_DAILY_LIMIT) {
+        return res.status(429).json({
+          success: false,
+          message: `You've used your ${DEEP_USER_DAILY_LIMIT} Deep Mode request for today. It resets at 12:30 PM IST.`,
+          code: "DEEP_USER_LIMIT",
+        });
+      }
+
+      // (b) Global allowance: prefer Gemini 3 Flash, fall back to Gemini 2.5 Flash.
+      const chosen = pickDeepModel(quota.counts);
+      if (!chosen) {
+        return res.status(429).json({
+          success: false,
+          message: `Deep Mode is at capacity for today. Please try standard mode or come back after 12:30 PM IST.`,
+          code: "DEEP_GLOBAL_LIMIT",
+        });
+      }
+      modelName = chosen.name;
+
+      // Reserve both counters up-front to avoid races / abuse.
+      quota.counts.set(chosen.key, (quota.counts.get(chosen.key) || 0) + 1);
+      await quota.save();
+      await User.findByIdAndUpdate(req.user._id, {
+        deepUsage: { date: today, count: userUsed + 1 },
+      });
+    } else {
+      // Standard chat stops at the USABLE cap; the rest is held in reserve
+      // for essential actions (e.g. publishing a resolved fix).
+      const globalNormal = quota.counts.get(NORMAL_MODEL_KEY) || 0;
+      if (globalNormal >= NORMAL_USABLE_LIMIT) {
+        return res.status(429).json({
+          success: false,
+          message: `Daily request limit reached. Resets at 12:30 PM IST.`,
+          code: "QUOTA_EXCEEDED",
+        });
+      }
+      quota.counts.set(NORMAL_MODEL_KEY, globalNormal + 1);
+      await quota.save();
+    }
 
     // 1. Initialize SSE Headers
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
-    // Handle abrupt client disconnection or stream errors
+    // Handle abrupt client disconnection or stream errors. We do NOT abort
+    // generation here — the model stream is independent of this socket, so we
+    // let it finish and persist the full reply below (see safeWrite).
     res.on("error", (err) => {
       console.error("SSE Response Error:", err);
     });
+    res.on("close", () => {
+      if (!res.writableEnded) {
+        console.log(`[stream] client disconnected; finishing + persisting reply for session ${activeSessionId}`);
+      }
+    });
 
-    const isFollowUp = !!sessionId;
     let activeSessionId = sessionId;
 
-    // 1. If new chat, create session immediately to provide ID for redirection
+    // Persist the USER turn up-front so the conversation survives even if the
+    // client closes the tab mid-stream (the assistant reply is appended once
+    // generation completes, regardless of whether the client is still connected).
     if (!isFollowUp) {
       const session = await DebugSession.create({
         userId: req.user._id,
@@ -78,63 +216,62 @@ export const analyzeError = async (req, res) => {
       activeSessionId = session._id;
 
       // Send immediate ID for frontend redirection
-      res.write(
-        `data: ${JSON.stringify({ metadata: { sessionId: activeSessionId } })}\n\n`,
-      );
+      safeWrite(res, { metadata: { sessionId: activeSessionId } });
 
       // Update user stats
       await User.findByIdAndUpdate(req.user._id, {
         $inc: { "stats.totalSessions": 1 },
       });
+    } else {
+      // Existing chat: append the user's follow-up now; the reply follows below.
+      await DebugSession.updateOne(
+        { _id: sessionId, userId: req.user._id },
+        { $push: { messages: { role: "user", content: errorLog } } },
+      );
     }
 
-    // 2. Environment-based AI switching
+    // 2. Use the real Gemini service unless mocking is EXPLICITLY enabled.
+    //    (NODE_ENV=development no longer forces mock — real keys are used in dev too.)
     const service =
-      process.env.NODE_ENV === "development" || process.env.MOCK_AI === "true"
-        ? mockDebugAnalysis
-        : streamDebugAnalysis;
+      process.env.MOCK_AI === "true" ? mockDebugAnalysis : streamDebugAnalysis;
 
-    const { fullText, metadata } = await service(errorLog, res, history || [], rawModel);
+    const { fullText, metadata } = await service(errorLog, res, priorTurns, {
+      deepMode,
+      modelName,
+      personalization: req.user.personalization || {},
+      contextSummary,
+    });
 
-    // 3. Persist the interaction
+    // 4. Persist the assistant reply (cleaned — no meta blocks). The user turn was
+    //    already saved above, so closing the tab can't lose the conversation.
+    const cleanText = stripMeta(fullText);
     if (isFollowUp) {
-      // Append to existing session
       await DebugSession.findByIdAndUpdate(sessionId, {
-        $push: {
-          messages: {
-            $each: [
-              { role: "user", content: errorLog },
-              { role: "assistant", content: fullText },
-            ],
-          },
-        },
+        $push: { messages: { role: "assistant", content: cleanText } },
       });
     } else {
-      // Finalize created session
+      // Finalize created session. Use the AI-suggested title if it gave one.
+      const aiTitle =
+        typeof metadata.title === "string"
+          ? metadata.title.replace(/^["'\s]+|["'\s]+$/g, "").replace(/[.\s]+$/, "").slice(0, 80)
+          : "";
+
       await DebugSession.findByIdAndUpdate(activeSessionId, {
-        $push: { messages: { role: "assistant", content: fullText } },
-        "aiResponse.fullText": fullText,
+        $push: { messages: { role: "assistant", content: cleanText } },
+        "aiResponse.fullText": cleanText,
         category: metadata.category || "Unknown",
         techStack: metadata.techStack || [],
+        ...(aiTitle ? { title: aiTitle } : {}),
       });
     }
 
-    // 4. Finalize the SSE stream
-    res.write(
-      `data: ${JSON.stringify({
-        done: true,
-        metadata: { ...metadata, sessionId: activeSessionId },
-      })}\n\n`,
-    );
-    res.end();
+    // 5. Finalize the SSE stream (no-op if the client already disconnected).
+    safeWrite(res, { done: true, metadata: { ...metadata, sessionId: activeSessionId } });
+    if (!res.writableEnded) res.end();
   } catch (error) {
     console.error("Analysis Error:", error);
-    if (!res.writableEnded) {
-      res.write(
-        `data: ${JSON.stringify({ error: "SERVER_PROCESS_ERROR", message: error.message })}\n\n`,
-      );
-      res.end();
-    }
+    safeWrite(res, { error: "SERVER_PROCESS_ERROR", message: error.message });
+    if (!res.writableEnded) res.end();
   }
 };
 
@@ -181,19 +318,18 @@ export const getSession = async (req, res) => {
 // @access  Private
 export const confirmFix = async (req, res, next) => {
   try {
-    const { userNote, selectedModel: rawModel = "Gemma 3 12B", shouldPublish = true } = req.body;
+    const { userNote, shouldPublish = true } = req.body;
     const { id: sessionId } = req.params;
-    const selectedModel = rawModel.replace(/\./g, "_");
 
-    const effectiveNote = userNote && userNote.trim().length >= 5 
-      ? userNote 
+    const effectiveNote = userNote && userNote.trim().length >= 5
+      ? userNote
       : "User followed the AI-suggested diagnostic path and confirmed the resolution.";
 
     const session = await DebugSession.findOne({
       _id: sessionId,
       userId: req.user._id,
     });
-    
+
     if (!session) {
       return res.status(404).json({ success: false, message: "Session not found" });
     }
@@ -210,31 +346,20 @@ export const confirmFix = async (req, res, next) => {
     let articleResult = null;
 
     if (shouldPublish) {
-      // 0. Check and Update Daily Quota (Only if publishing - Resets at Midnight Pacific Time)
-      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-      let quota = await ApiQuota.findOneAndUpdate(
-        { date: today },
-        { $setOnInsert: { 
-            date: today,
-            counts: { "Gemini 3 Flash": 0, "Gemini 2_5 Flash": 0, "Gemma 3 4B": 0, "Gemma 3 12B": 0 }
-          } 
-        },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
-      );
+      // 0. Article generation uses the standard model -> charge the normal pool.
+      const quota = await getTodayQuota();
+      const currentCount = quota.counts.get(NORMAL_MODEL_KEY) || 0;
 
-      const currentCount = quota.counts.get(selectedModel) || 0;
-      const modelLimit = rawModel.toLowerCase().startsWith("gemma") ? 14000 : 20;
-
-      if (currentCount >= modelLimit) {
+      if (currentCount >= NORMAL_DAILY_LIMIT) {
         return res.status(429).json({
           success: false,
-          message: `Daily limit (${modelLimit}) reached for ${rawModel}. Resets at 12:30 PM IST.`,
+          message: `Daily request limit reached. Publishing resets at 12:30 PM IST.`,
           code: "QUOTA_EXCEEDED",
         });
       }
 
       // Increment quota
-      quota.counts.set(selectedModel, currentCount + 1);
+      quota.counts.set(NORMAL_MODEL_KEY, currentCount + 1);
       await quota.save();
 
       // 2. Cleanup: If an article already exists for this session, delete it first (Sync Again)
@@ -249,9 +374,15 @@ export const confirmFix = async (req, res, next) => {
         aiAnalysis,
         effectiveNote,
         session.category,
-        rawModel,
+        NORMAL_MODEL,
         session.messages,
+        session.contextSummary,
       );
+
+      // Decide the blog identity: explicit request wins, else the user's default.
+      const authorDisplay = ["name", "anonymous"].includes(req.body.authorDisplay)
+        ? req.body.authorDisplay
+        : req.user.preferences?.defaultBlogIdentity || "name";
 
       // Create Library Article
       const article = await LibraryArticle.create({
@@ -261,6 +392,7 @@ export const confirmFix = async (req, res, next) => {
         title: metadata.title,
         metaDescription: metadata.metaDescription,
         content,
+        authorDisplay,
         tags: metadata.tags || [],
         errorSnippet: (session.rawError || "").substring(0, 500),
         seo: {
@@ -270,10 +402,10 @@ export const confirmFix = async (req, res, next) => {
       });
 
       session.articleId = article._id;
-      articleResult = { 
-        slug: article.slug, 
+      articleResult = {
+        slug: article.slug,
         title: article.title,
-        url: `/library/${article.slug}` 
+        url: `/library/${article.slug}`
       };
     }
 
@@ -284,7 +416,7 @@ export const confirmFix = async (req, res, next) => {
         userNote,
         confirmedAt: new Date(),
       };
-      
+
       // Update User Stats (Only if marking as fixed for the first time)
       await User.findByIdAndUpdate(req.user._id, {
         $inc: { "stats.confirmedFixes": 1 },
@@ -346,33 +478,55 @@ export const deleteSession = async (req, res) => {
   }
 };
 
-// @desc    Get current daily quota usage
+// @desc    Delete ALL of the user's conversations (Data Controls)
+// @route   DELETE /api/debug/sessions
+// @access  Private
+export const deleteAllSessions = async (req, res) => {
+  try {
+    const { deletedCount } = await DebugSession.deleteMany({ userId: req.user._id });
+    res.json({ success: true, message: `Deleted ${deletedCount} conversations`, deletedCount });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Get current daily quota usage (normal pool + this user's Deep Mode allowance)
 // @route   GET /api/debug/quota
 // @access  Private
 export const getQuota = async (req, res) => {
   try {
-    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-    
-    const quota = await ApiQuota.findOneAndUpdate(
-      { date: today },
-      { $setOnInsert: { 
-          date: today,
-          counts: { "Gemini 3 Flash": 0, "Gemini 2_5 Flash": 0, "Gemma 3 4B": 0, "Gemma 3 12B": 0 }
-        } 
+    const today = getQuotaDate();
+    const quota = await getTodayQuota();
+
+    const normalUsed = quota.counts.get(NORMAL_MODEL_KEY) || 0;
+    const deepGlobalUsed =
+      (quota.counts.get(DEEP_MODEL_KEY) || 0) +
+      (quota.counts.get(DEEP_FALLBACK_MODEL_KEY) || 0);
+    const deepUserUsed = deepUsedToday(req.user, today);
+    const deepGlobalLimit = DEEP_DAILY_LIMIT + DEEP_FALLBACK_DAILY_LIMIT;
+
+    res.json({
+      success: true,
+      data: {
+        normal: {
+          used: normalUsed,
+          limit: NORMAL_DAILY_LIMIT,
+          usable: NORMAL_USABLE_LIMIT,
+          reserve: NORMAL_DAILY_RESERVE,
+          available: normalUsed < NORMAL_USABLE_LIMIT,
+        },
+        deep: {
+          userUsed: deepUserUsed,
+          userLimit: DEEP_USER_DAILY_LIMIT,
+          remaining: Math.max(0, DEEP_USER_DAILY_LIMIT - deepUserUsed),
+          globalUsed: deepGlobalUsed,
+          globalLimit: deepGlobalLimit,
+          available:
+            deepUserUsed < DEEP_USER_DAILY_LIMIT &&
+            deepGlobalAvailable(quota.counts),
+        },
       },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
-
-    // Convert Map to plain object for easier frontend consumption
-    const counts = Object.fromEntries(quota.counts);
-    
-    // We need to map back to dots for the frontend display if stored with underscores
-    const displayCounts = {};
-    for (const [key, val] of Object.entries(counts)) {
-      displayCounts[key.replace(/_/g, '.')] = val;
-    }
-
-    res.json({ success: true, data: displayCounts });
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
