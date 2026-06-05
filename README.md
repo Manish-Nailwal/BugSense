@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/bc4bf26f-9d10-48a7-89c3-53dfef4acccf" width="400" alt="Trace Banner">
-</p>
-
 # Trace
 **by [Manish Labs](https://manishlabs.com)**
 
