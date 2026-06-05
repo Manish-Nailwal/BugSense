@@ -1,5 +1,5 @@
 import React from 'react';
-import { Compass, Clock, ArrowRight, Zap, Target, Brain } from 'lucide-react';
+import { Compass, Clock, ArrowRight, ArrowUpRight, Zap, Target, Brain } from 'lucide-react';
 
 const ROADMAPS = [
   {
@@ -136,54 +136,95 @@ const ROADMAPS = [
   }
 ];
 
-const LearningRoadmaps = () => {
+// Color palette for AI-recommended cards (cycled by index).
+const PALETTE = [
+  { color: 'text-blue-500', bg: 'bg-blue-500/10', badge: 'text-blue-500 bg-blue-500/5 border-blue-500/10' },
+  { color: 'text-cyan-500', bg: 'bg-cyan-500/10', badge: 'text-cyan-500 bg-cyan-500/5 border-cyan-500/10' },
+  { color: 'text-emerald-500', bg: 'bg-emerald-500/10', badge: 'text-emerald-500 bg-emerald-500/5 border-emerald-500/10' },
+  { color: 'text-indigo-500', bg: 'bg-indigo-500/10', badge: 'text-indigo-500 bg-indigo-500/5 border-indigo-500/10' },
+  { color: 'text-amber-500', bg: 'bg-amber-500/10', badge: 'text-amber-500 bg-amber-500/5 border-amber-500/10' },
+  { color: 'text-pink-500', bg: 'bg-pink-500/10', badge: 'text-pink-500 bg-pink-500/5 border-pink-500/10' },
+];
+const ICONS = [Zap, Target, Brain];
+
+/**
+ * Official docs cards. When `paths` (AI-recommended stacks) are supplied, they're
+ * shown as a personalized set; otherwise a curated default list is used.
+ * `trending` flags curated/default picks (vs. the user's own report).
+ * `onViewAll` (optional) renders a link to the full skills/paths archive.
+ */
+const LearningRoadmaps = ({ paths, trending = false, onViewAll }) => {
+  const dynamic = Array.isArray(paths) && paths.length > 0;
+
+  const items = dynamic
+    ? paths.slice(0, 6).map((p, i) => {
+        const c = PALETTE[i % PALETTE.length];
+        return {
+          id: `${p.name}-${i}`,
+          title: p.name,
+          description: `Official documentation to level up your ${p.name}.`,
+          duration: p.level || 'Docs',
+          level: 'Recommended',
+          icon: ICONS[i % ICONS.length],
+          colorClass: c.color,
+          bgClass: c.bg,
+          badgeClass: c.badge,
+          url: p.url,
+        };
+      })
+    : ROADMAPS.slice(0, 6);
+
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
           <Compass size={14} className="text-emerald-500" />
-          <h4 className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em]">Official Learning Paths</h4>
+          <h4 className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">Official Learning Paths</h4>
+        </div>
+        <div className="flex items-center gap-3">
+          {dynamic && (
+            <span className="text-[9px] font-semibold uppercase tracking-wider text-emerald-500">
+              {trending ? 'Trending now' : 'Personalized for you'}
+            </span>
+          )}
+          {onViewAll && (
+            <button
+              onClick={onViewAll}
+              className="flex items-center gap-1 text-[9px] font-semibold uppercase tracking-wider text-emerald-500 hover:text-emerald-400 transition-colors"
+            >
+              View all <ArrowUpRight size={11} />
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="max-h-[460px] overflow-y-auto pr-2 space-y-4 scrollbar-none scroll-smooth">
-        {ROADMAPS.map((roadmap) => (
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {items.map((roadmap) => (
           <a
             key={roadmap.id}
             href={roadmap.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="group relative p-6 rounded-2xl bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 hover:border-emerald-500/30 transition-all duration-300 cursor-pointer overflow-hidden block"
+            className="group relative p-4 rounded-2xl bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 hover:border-emerald-500/30 transition-all duration-300 cursor-pointer block"
           >
-            <div className="flex items-start gap-5">
-              <div className={`w-11 h-11 rounded-xl ${roadmap.bgClass} flex items-center justify-center shrink-0`}>
-                <roadmap.icon size={22} className={roadmap.colorClass} />
+            <div className="flex items-start gap-3.5">
+              <div className={`w-10 h-10 rounded-xl ${roadmap.bgClass} flex items-center justify-center shrink-0`}>
+                <roadmap.icon size={19} className={roadmap.colorClass} />
               </div>
-              
               <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1">
-                  <h5 className="text-[15px] font-extrabold text-zinc-900 dark:text-zinc-100 truncate pr-4">
-                    {roadmap.title}
-                  </h5>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <div className="flex items-center gap-1 text-[10px] font-bold text-zinc-400 uppercase tracking-tighter">
-                      <Clock size={10} />
-                      {roadmap.duration}
-                    </div>
-                  </div>
-                </div>
-                
-                <p className="text-[12px] text-zinc-500 dark:text-zinc-400 line-clamp-2 leading-relaxed mb-4">
+                <h5 className="text-[13.5px] font-semibold text-zinc-900 dark:text-zinc-100 truncate">
+                  {roadmap.title}
+                </h5>
+                <p className="text-[11px] text-zinc-500 dark:text-zinc-400 line-clamp-2 leading-relaxed mt-0.5 mb-2.5">
                   {roadmap.description}
                 </p>
-                
                 <div className="flex items-center justify-between">
-                  <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded border ${roadmap.badgeClass}`}>
-                    {roadmap.level}
+                  <span className="flex items-center gap-1 text-[9px] font-semibold text-zinc-400 uppercase tracking-wider">
+                    <Clock size={10} /> {roadmap.duration}
                   </span>
-                  <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                    View Docs <ArrowRight size={12} />
-                  </div>
+                  <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                    Docs <ArrowRight size={11} />
+                  </span>
                 </div>
               </div>
             </div>

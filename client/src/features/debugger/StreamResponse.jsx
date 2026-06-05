@@ -2,42 +2,95 @@ import React, { useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import useDebugStore from "../../store/debugStore";
 import {
-  Terminal,
   Send,
   Sparkles,
   Copy,
   Check,
   RotateCcw,
   Zap,
-  CheckCircle2,
+  Share2,
+  MoreHorizontal,
+  ArrowUpRight
 } from "lucide-react";
-import { useUiStore } from "../../store/uiStore";
-import ModelSelector from "./ModelSelector";
+import AttachMenu from "./AttachMenu";
+import { MAX_INPUT_CHARS, INPUT_WARN_AT } from "../../config/limits";
+import { MANISH_LABS_URL } from "../../config/links";
+
+/**
+ * Self-contained CopyButton for code blocks to prevent state leakage
+ */
+const CopyButton = ({ text }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="flex items-center gap-1.5 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors text-zinc-400 font-semibold"
+    >
+      {copied ? (
+        <>
+          <Check size={11} className="text-emerald-500" />
+          <span className="text-emerald-500 text-[10px] uppercase tracking-wider">Copied!</span>
+        </>
+      ) : (
+        <>
+          <Copy size={11} />
+          <span className="text-[10px] uppercase tracking-wider">Copy</span>
+        </>
+      )}
+    </button>
+  );
+};
+
+/**
+ * Self-contained CopyButton for the entire message response
+ */
+const CopyMessageButton = ({ text }) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <button
+      onClick={handleCopy}
+      data-tooltip="Copy response"
+      className="p-1 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-350 transition-colors"
+    >
+      {copied ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
+    </button>
+  );
+};
 
 const StreamResponse = () => {
-  const { 
-    messages, 
-    streamedResponse, 
-    isStreaming, 
-    error, 
-    sendFollowUp, 
-    sessionId, 
-    setConfirmModalOpen,
-    selectedModel,
-    quotaCounts
+  const {
+    messages,
+    streamedResponse,
+    isStreaming,
+    error,
+    sendFollowUp,
+    deepMode,
+    quota
   } = useDebugStore();
 
-  const currentLimit = selectedModel.startsWith("Gemma") ? 14000 : 20;
-  const isLimitReached = (quotaCounts[selectedModel] || 0) >= currentLimit;
+  // Standard follow-ups draw from the shared pool; Deep Mode has its own allowance.
+  const isLimitReached = !deepMode && quota?.normal && !quota.normal.available;
   const [followUp, setFollowUp] = useState("");
-  const [copiedId, setCopiedId] = useState(null);
   const scrollRef = useRef(null);
+  const followUpRef = useRef(null);
 
-  const copyToClipboard = (text, id) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
+  // Longer prompts get a slightly wider bar for breathing room.
+  const isWide = followUp.length > 140 || followUp.includes("\n");
+  const nearLimit = followUp.length >= INPUT_WARN_AT;
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -47,6 +100,14 @@ const StreamResponse = () => {
       });
     }
   }, [messages, streamedResponse]);
+
+  // Auto-grow the follow-up textarea up to ~8 lines.
+  useEffect(() => {
+    const el = followUpRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+  }, [followUp]);
 
   const handleSend = () => {
     if (followUp.trim() && !isStreaming) {
@@ -65,30 +126,33 @@ const StreamResponse = () => {
   const markdownComponents = {
     h1: ({ ...props }) => (
       <h1
-        className="text-xl font-bold mt-12 mb-6 flex items-center gap-2 border-b border-zinc-100 dark:border-zinc-800 pb-2 first:mt-0 tracking-tight text-zinc-900 dark:text-zinc-100"
+        className="text-lg font-bold mt-8 mb-4 border-b border-zinc-100 dark:border-zinc-850 pb-2 first:mt-0 tracking-tight text-zinc-900 dark:text-zinc-100 font-sans"
         {...props}
       />
     ),
     h2: ({ ...props }) => (
       <h2
-        className="text-lg font-bold mt-10 mb-4 flex items-center gap-2 first:mt-0 tracking-tight text-zinc-900 dark:text-zinc-100"
+        className="text-base font-bold mt-6 mb-3 tracking-tight text-zinc-900 dark:text-zinc-100 font-sans"
         {...props}
       />
     ),
     p: ({ ...props }) => (
-      <p className="mb-6 last:mb-0 leading-relaxed text-[15px] text-zinc-600 dark:text-zinc-400" {...props} />
+      <p className="mb-4 last:mb-0 leading-relaxed text-[14.5px] text-zinc-650 dark:text-zinc-350 font-normal" {...props} />
     ),
     code: ({ className, children, ...props }) => {
       const match = /language-(\w+)/.exec(className || "");
       const isBlock = match || String(children).includes("\n");
       
       if (isBlock) {
+        const lang = match ? match[1] : 'code';
+        const codeText = String(children).trim();
         return (
-          <div className="relative group/code my-8">
-            <div className="absolute -top-3 right-4 px-2 py-1 rounded bg-zinc-800 text-[9px] font-bold text-zinc-500 uppercase tracking-widest opacity-0 group/code:opacity-100 transition-opacity">
-              {match ? match[1] : 'code'}
+          <div className="relative my-5 rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-[#0d0d0d] shadow-md group/code">
+            <div className="flex items-center justify-between px-4 py-2.5 bg-zinc-50 dark:bg-[#18181b] border-b border-zinc-250 dark:border-zinc-800 text-[10px] text-zinc-400 dark:text-zinc-500 font-bold uppercase tracking-wider">
+              <span>{lang}</span>
+              <CopyButton text={codeText} />
             </div>
-            <pre className="p-5 overflow-x-auto max-h-[500px] scrollbar-thin text-[13px] bg-zinc-950 border border-zinc-800/50 rounded-2xl font-mono leading-relaxed shadow-xl">
+            <pre className="p-4 overflow-x-auto max-h-[500px] scrollbar-thin text-[12.5px] bg-[#0d0d0d] font-mono leading-relaxed text-zinc-350">
               <code className="block text-zinc-300" {...props}>{children}</code>
             </pre>
           </div>
@@ -97,207 +161,132 @@ const StreamResponse = () => {
       
       return (
         <code
-          className="bg-emerald-500/10 dark:bg-emerald-500/20 px-1.5 py-0.5 rounded font-mono text-[13px] text-emerald-600 dark:text-emerald-400"
+          className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/80 px-1.5 py-0.5 rounded font-mono text-[12.5px] text-zinc-800 dark:text-zinc-200 font-semibold"
           {...props}
         >
           {children}
         </code>
       );
     },
-    ul: ({ ...props }) => <ul className="space-y-3 mb-6 list-none" {...props} />,
+    ul: ({ ...props }) => <ul className="space-y-2 mb-4 list-none" {...props} />,
     li: ({ children, ...props }) => {
       const content = String(children);
       if (content.startsWith('[ ]') || content.startsWith('[x]')) {
         const isChecked = content.startsWith('[x]');
         return (
-          <li className="flex items-start gap-3 group" {...props}>
-            <div className={`mt-1 flex-shrink-0 w-4 h-4 rounded border flex items-center justify-center transition-colors ${isChecked ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-zinc-300 dark:border-zinc-700 bg-white/5 dark:bg-zinc-800'}`}>
-              {isChecked && <CheckCircle2 size={10} />}
+          <li className="flex items-start gap-2.5 group" {...props}>
+            <div className={`mt-1 flex-shrink-0 w-4 h-4 rounded-md border flex items-center justify-center transition-colors ${isChecked ? 'bg-zinc-950 dark:bg-white border-zinc-950 dark:border-white text-white dark:text-zinc-950' : 'border-zinc-300 dark:border-zinc-700 bg-white/5 dark:bg-zinc-800'}`}>
+              {isChecked && <Check size={10} />}
             </div>
-            <span className="text-[14px] text-zinc-600 dark:text-zinc-400 group-hover:text-zinc-900 dark:group-hover:text-zinc-200 transition-colors">
+            <span className="text-[14px] text-zinc-650 dark:text-zinc-350 font-normal">
               {content.substring(3).trim()}
             </span>
           </li>
         );
       }
       return (
-        <li className="flex items-start gap-3" {...props}>
-          <div className="mt-2.5 w-1 h-1 rounded-full bg-emerald-500 flex-shrink-0" />
-          <span className="text-[14px] leading-relaxed">{children}</span>
+        <li className="flex items-start gap-2.5" {...props}>
+          <div className="mt-2.5 w-1 h-1 rounded-full bg-zinc-400 dark:bg-zinc-600 flex-shrink-0" />
+          <span className="text-[14px] leading-relaxed text-zinc-650 dark:text-zinc-350 font-normal">{children}</span>
         </li>
       );
     },
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-zinc-50 dark:bg-zinc-950">
-      {/* Messages List */}
+    <div className="flex flex-col h-full overflow-hidden bg-white dark:bg-[#0d0d0d] transition-colors duration-300 relative">
+      {/* Messages List Container */}
       <div
         ref={scrollRef}
         className="flex-1 h-0 overflow-y-auto scrollbar-thin scroll-smooth"
       >
-        <div className="max-w-7xl w-full mx-auto p-4 md:p-10 space-y-8 transition-all duration-500">
-          {messages.length > 0 && (
-            <div className="flex flex-col gap-6">
-              {/* Turn 0: The Root Context + Initial Analysis */}
-              <div id="msg-0" className="relative pl-6 border-l-2 border-emerald-500/20 py-2">
-                <div className="absolute -left-[5px] top-4 w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest">
-                    Root_Session_Context
-                  </span>
-                  <div className="h-[1px] flex-1 bg-zinc-100 dark:bg-zinc-800" />
+        <div className="max-w-3xl w-full mx-auto p-4 md:p-8 pb-8 space-y-8 transition-all duration-500">
+          {messages.map((msg, idx) => {
+            if (msg.role === "user") {
+              const contentStr = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content, null, 2);
+              const isStackTrace = contentStr.includes('\n') || contentStr.includes('\tat ') || contentStr.includes('Error:');
+              
+              return (
+                <div key={idx} id={`msg-${idx}`} className="flex flex-col items-end w-full animate-in fade-in duration-300 scroll-mt-20">
+                  <div className={`px-6 py-3 rounded-2xl bg-zinc-100 dark:bg-[#1f1f23] border border-zinc-200 dark:border-zinc-800 text-[14px] text-zinc-800 dark:text-zinc-100 shadow-sm ${
+                    isStackTrace 
+                      ? 'font-mono text-[12px] overflow-x-auto whitespace-pre-wrap max-h-52 scrollbar-thin leading-relaxed w-full bg-[#18181b] dark:bg-[#121214]' 
+                      : 'whitespace-pre-wrap font-sans font-normal text-left max-w-[70%]'
+                  }`}>
+                    {contentStr}
+                  </div>
                 </div>
-                <div className="p-4 mb-6 rounded-xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 font-mono text-[13px] text-zinc-600 dark:text-zinc-400 overflow-x-auto whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto scrollbar-thin">
-                  {typeof messages[0].content === 'string' 
-                    ? messages[0].content 
-                    : JSON.stringify(messages[0].content, null, 2)}
-                </div>
-
-                {/* Primary Evaluation (First AI Response) */}
-                {messages[1] && (
-                  <div id="msg-1" className="animate-in fade-in duration-700">
-                    <div className="flex items-center justify-between w-full px-1 mb-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center shadow-sm">
-                          <Sparkles size={10} className="text-emerald-500" />
-                        </div>
-                        <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-[0.15em]">
-                          Primary_Evaluation
-                        </span>
-                      </div>
+              );
+            } else {
+              return (
+                <div key={idx} id={`msg-${idx}`} className="flex flex-col items-start w-full animate-in fade-in duration-500 scroll-mt-20">
+                  <div className="flex items-center gap-2 mb-2 px-1">
+                    <div className="w-5 h-5 rounded-full bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center border border-zinc-250 dark:border-zinc-800 shadow-sm shrink-0">
+                      <Sparkles size={11} className="text-zinc-500 dark:text-zinc-400" />
                     </div>
-                    <div className="p-6 rounded-2xl bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800/50 text-zinc-800 dark:text-zinc-200 shadow-sm overflow-hidden">
-                      <div
-                        className="prose prose-zinc dark:prose-invert max-w-none break-words
-                        prose-p:text-[15px] prose-p:leading-8 prose-p:text-zinc-600 dark:prose-p:text-zinc-400
-                        prose-headings:text-zinc-900 dark:prose-headings:text-zinc-100 prose-headings:font-bold
-                        prose-code:text-emerald-600 dark:prose-code:text-emerald-400 prose-code:font-mono prose-code:before:content-none prose-code:after:content-none
-                        prose-pre:bg-zinc-100 dark:prose-pre:bg-zinc-950 prose-pre:border prose-pre:border-zinc-200 dark:prose-pre:border-zinc-800 prose-pre:rounded-xl
-                        prose-blockquote:border-l-4 prose-blockquote:border-emerald-500/20 prose-blockquote:bg-emerald-500/5 dark:prose-blockquote:bg-emerald-500/10 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:rounded-r-xl prose-blockquote:italic prose-blockquote:text-zinc-500
-                        prose-hr:border-zinc-100 dark:prose-hr:border-zinc-800 prose-hr:my-8
-                        prose-li:marker:text-emerald-500 prose-li:text-[15px]
-                      "
-                      >
-                        <ReactMarkdown components={markdownComponents}>
-                          {cleanContent(messages[1].content)}
-                        </ReactMarkdown>
-                      </div>
+                    <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-wider">
+                      Trace Expert Solution
+                    </span>
+                  </div>
+                  <div className="w-full text-zinc-800 dark:text-zinc-200 overflow-hidden pl-1">
+                    <div className="prose prose-zinc dark:prose-invert max-w-none break-words
+                      prose-p:text-[14.5px] prose-p:leading-relaxed prose-p:text-zinc-650 dark:prose-p:text-zinc-350
+                      prose-headings:text-zinc-900 dark:prose-headings:text-zinc-100 prose-headings:font-bold
+                      prose-code:before:content-none prose-code:after:content-none
+                      prose-li:text-[14px] prose-li:leading-relaxed
+                      prose-blockquote:border-l-4 prose-blockquote:border-zinc-300 dark:prose-blockquote:border-zinc-700 prose-blockquote:bg-zinc-50 dark:prose-blockquote:bg-zinc-900/30 prose-blockquote:py-1.5 prose-blockquote:px-4 prose-blockquote:rounded-r-xl prose-blockquote:italic prose-blockquote:text-zinc-500"
+                    >
+                      <ReactMarkdown components={markdownComponents}>
+                        {cleanContent(msg.content)}
+                      </ReactMarkdown>
                     </div>
                   </div>
-                )}
-              </div>
-
-              {/* Subsequent Follow-up Dialogue */}
-              {messages
-                .slice(2)
-                .reduce((turns, msg, i) => {
-                  if (msg.role === "user") turns.push([msg]);
-                  else if (turns.length > 0) turns[turns.length - 1].push(msg);
-                  return turns;
-                }, [])
-                .map((turn, turnIdx) => (
-                  <div
-                    key={turnIdx}
-                    className="space-y-6 relative pl-6 border-l-2 border-zinc-100 dark:border-zinc-800 py-1 pb-4"
-                  >
-                    {/* TURN MARKER */}
-                    <div className="absolute -left-[3px] top-6 w-1 h-6 rounded-full bg-zinc-200 dark:bg-zinc-700" />
-
-                    {turn.map((msg, msgIdx) => (
-                      <div
-                        id={`msg-${(turnIdx + 1) * 2 + msgIdx}`}
-                        key={msgIdx}
-                        className="group animate-in fade-in slide-in-from-bottom-1 duration-500"
-                      >
-                        {msg.role === "user" ? (
-                          <div className="flex items-center gap-4 mb-3">
-                            <span className="text-[11px] font-extrabold text-zinc-900 dark:text-zinc-100 uppercase tracking-widest bg-zinc-100 dark:bg-zinc-800 px-2 py-0.5 rounded border border-zinc-200 dark:border-zinc-700">
-                              Entry_Point_{turnIdx + 2}
-                            </span>
-                            <span className="text-[12px] font-medium text-zinc-500 dark:text-zinc-400 italic bg-zinc-50 dark:bg-zinc-900/50 px-3 py-1 rounded-lg border border-zinc-100 dark:border-zinc-800">
-                              "{msg.content}"
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="space-y-4">
-                            <div className="flex items-center justify-between w-full px-1">
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-[0.1em]">
-                                  Diagnostic_Deep_Dive
-                                </span>
-                              </div>
-                              <button
-                                onClick={() =>
-                                  copyToClipboard(
-                                    cleanContent(msg.content),
-                                    turnIdx,
-                                  )
-                                }
-                                className="text-zinc-400 hover:text-emerald-500 transition-colors opacity-0 group-hover:opacity-100"
-                              >
-                                {copiedId === turnIdx ? (
-                                  <Check size={12} />
-                                ) : (
-                                  <Copy size={12} />
-                                )}
-                              </button>
-                            </div>
-
-                            <div className="p-6 rounded-2xl bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800/50 text-zinc-800 dark:text-zinc-200 shadow-sm border-l-emerald-500/20 border-l-4 overflow-hidden">
-                              <div
-                                className="prose prose-zinc dark:prose-invert max-w-none break-words
-                                prose-p:text-[14px] prose-p:leading-7 prose-p:text-zinc-600 dark:prose-p:text-zinc-400
-                                prose-headings:text-zinc-900 dark:prose-headings:text-zinc-100 prose-headings:font-bold
-                                prose-code:text-emerald-600 dark:prose-code:text-emerald-400 prose-code:font-mono prose-code:before:content-none prose-code:after:content-none
-                                prose-pre:bg-zinc-100 dark:prose-pre:bg-zinc-950 prose-pre:border prose-pre:border-zinc-200 dark:prose-pre:border-zinc-800 prose-pre:rounded-xl
-                                prose-blockquote:border-l-4 prose-blockquote:border-emerald-500/20 prose-blockquote:bg-emerald-500/5 dark:prose-blockquote:bg-emerald-500/10 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:rounded-r-xl prose-blockquote:italic prose-blockquote:text-zinc-500
-                                prose-hr:border-zinc-100 dark:prose-hr:border-zinc-800 prose-hr:my-8
-                                prose-li:marker:text-emerald-500 prose-li:text-[14px]
-                              "
-                              >
-                                <ReactMarkdown components={markdownComponents}>
-                                  {cleanContent(msg.content)}
-                                </ReactMarkdown>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                  <div className="flex items-center gap-3 mt-2 pl-1 select-none">
+                    <CopyMessageButton text={cleanContent(msg.content)} />
+                    <button className="p-1 text-zinc-400 hover:text-zinc-650 dark:hover:text-zinc-300 transition-colors" data-tooltip="Share">
+                      <Share2 size={13} />
+                    </button>
+                    <button 
+                      onClick={() => useDebugStore.getState().retryAnalysis()}
+                      className="p-1 text-zinc-400 hover:text-zinc-650 dark:hover:text-zinc-300 transition-colors" 
+                      data-tooltip="Regenerate"
+                    >
+                      <RotateCcw size={13} />
+                    </button>
+                    <button className="p-1 text-zinc-400 hover:text-zinc-650 dark:hover:text-zinc-300 transition-colors" data-tooltip="More options">
+                      <MoreHorizontal size={13} />
+                    </button>
                   </div>
-                ))}
-            </div>
-          )}
+                </div>
+              );
+            }
+          })}
 
           {/* Streaming / Thinking State */}
           {(isStreaming || streamedResponse) && (
-            <div className="pl-6 border-l-2 border-emerald-500/20 py-1 transition-all animate-in fade-in slide-in-from-left-2 duration-500">
-              <div className="flex items-center gap-3 px-1 mb-4">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.3s]" />
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce [animation-delay:-0.15s]" />
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-bounce" />
+            <div className="flex flex-col items-start w-full animate-in fade-in duration-300 pl-1">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-1">
+                  <div className="w-1.5 h-1.5 rounded-full bg-zinc-400 dark:bg-zinc-600 animate-bounce [animation-delay:-0.3s]" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-zinc-400 dark:bg-zinc-600 animate-bounce [animation-delay:-0.15s]" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-zinc-400 dark:bg-zinc-600 animate-bounce" />
                 </div>
-                <span className="text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em] animate-pulse">
-                  {streamedResponse ? "Generating Analysis" : "Processing Intelligence"}
+                <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">
+                  {streamedResponse ? "Synthesizing Fix..." : "Thinking..."}
                 </span>
               </div>
               
-              <div className={`p-6 rounded-2xl bg-white dark:bg-zinc-900 border border-emerald-500/20 text-[14px] leading-relaxed shadow-lg shadow-emerald-500/5 w-full overflow-hidden ${!streamedResponse ? 'opacity-50' : ''}`}>
+              <div className="w-full text-zinc-800 dark:text-zinc-200 overflow-hidden pl-1">
                 {!streamedResponse ? (
-                  <div className="space-y-4 animate-pulse">
-                    <div className="h-4 bg-zinc-100 dark:bg-zinc-800 rounded-lg w-3/4" />
-                    <div className="h-4 bg-zinc-100 dark:bg-zinc-800 rounded-lg w-1/2" />
-                    <div className="h-4 bg-zinc-100 dark:bg-zinc-800 rounded-lg w-5/6" />
+                  <div className="space-y-3.5 animate-pulse max-w-lg">
+                    <div className="h-3.5 bg-zinc-100 dark:bg-zinc-900 rounded-lg w-3/4" />
+                    <div className="h-3.5 bg-zinc-100 dark:bg-zinc-900 rounded-lg w-1/2" />
+                    <div className="h-3.5 bg-zinc-100 dark:bg-zinc-900 rounded-lg w-5/6" />
                   </div>
                 ) : (
                   <div className="prose prose-zinc dark:prose-invert max-w-none break-words
-                    prose-p:text-[15px] prose-p:leading-8 prose-p:text-zinc-600 dark:prose-p:text-zinc-400
-                    prose-headings:text-zinc-900 dark:prose-headings:text-zinc-100 prose-headings:font-bold
-                    prose-code:text-emerald-600 dark:prose-code:text-emerald-400 prose-code:font-mono prose-code:before:content-none prose-code:after:content-none
-                    prose-pre:bg-zinc-100 dark:prose-pre:bg-zinc-950 prose-pre:border prose-pre:border-zinc-200 dark:prose-pre:border-zinc-800 prose-pre:rounded-xl
-                    prose-li:marker:text-emerald-500 prose-li:text-[15px]">
+                    prose-p:text-[14.5px] prose-p:leading-relaxed prose-p:text-zinc-650 dark:prose-p:text-zinc-350
+                    prose-code:before:content-none prose-code:after:content-none">
                     <ReactMarkdown components={markdownComponents}>
                       {cleanContent(streamedResponse)}
                     </ReactMarkdown>
@@ -306,10 +295,8 @@ const StreamResponse = () => {
               </div>
             </div>
           )}
-
-
           {error && (
-            <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 dark:bg-rose-500/5 dark:border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-medium flex items-center justify-between group/error">
+            <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 dark:bg-rose-500/5 dark:border-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-medium flex items-center justify-between group/error animate-in zoom-in-95">
               <div className="flex items-center gap-3">
                 <RotateCcw size={14} className="animate-pulse" />
                 <span>{error}</span>
@@ -323,47 +310,79 @@ const StreamResponse = () => {
               </button>
             </div>
           )}
+
+          {/* Spacer block so scrollable content isn't clipped by bottom absolute overlay bar */}
+          <div className="h-32 w-full shrink-0" />
         </div>
       </div>
 
-      <div className="p-4 border-t border-zinc-200 dark:border-zinc-800/50 bg-white dark:bg-zinc-950">
-        <div className="max-w-7xl w-full mx-auto relative group">
-          <div className="absolute inset-0 bg-emerald-500/5 rounded-2xl blur-xl group-focus-within:bg-emerald-500/10 transition-all duration-500 pointer-events-none" />
-          <div className="flex items-center gap-3 mb-2 px-1 relative z-10">
-             <ModelSelector position="up" />
-             <div className="h-3 w-[1px] bg-zinc-200 dark:bg-zinc-800" />
-             <div className="flex items-center gap-1">
-               <div className="w-1 h-1 rounded-full bg-emerald-500/50" />
-               <span className="text-[9px] font-black text-zinc-400 dark:text-zinc-600 uppercase tracking-widest">
-                 System Ready
-               </span>
-             </div>
-          </div>
-          <div className="relative flex items-end gap-2 bg-white/50 dark:bg-zinc-900/50 rounded-2xl border border-zinc-200/50 dark:border-zinc-800 p-1.5 focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-500/30 transition-all">
+      {/* Floating Bottom Bar */}
+      <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-white via-white/95 to-transparent dark:from-[#0d0d0d] dark:via-[#0d0d0d]/95 dark:to-transparent pt-16 z-10 pointer-events-none">
+        <div className={`w-full mx-auto relative group pointer-events-auto transition-[max-width] duration-300 ease-out ${isWide ? "max-w-4xl" : "max-w-3xl"}`}>
+          {/* Subtle Glow */}
+          <div className="absolute inset-0 bg-zinc-900/5 dark:bg-white/5 rounded-2xl blur-xl transition-all duration-500 pointer-events-none" />
+
+
+
+          <div className="relative flex items-end gap-2 bg-white dark:bg-[#1c1c1f] rounded-2xl border border-zinc-200/80 dark:border-zinc-800/80 p-2 shadow-lg shadow-black/5 dark:shadow-black/20 transition-all">
+            <div className="shrink-0">
+              <AttachMenu
+                position="up"
+                onAttachText={(text) =>
+                  setFollowUp((prev) =>
+                    (prev ? `${prev}\n\n${text}` : text).slice(0, MAX_INPUT_CHARS)
+                  )
+                }
+              />
+            </div>
+
             <textarea
+              ref={followUpRef}
               value={followUp}
-              onChange={(e) => setFollowUp(e.target.value)}
+              onChange={(e) => setFollowUp(e.target.value.slice(0, MAX_INPUT_CHARS))}
+              maxLength={MAX_INPUT_CHARS}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   handleSend();
                 }
               }}
-              placeholder="Ask a clarifying question..."
+              placeholder="Ask a question about the bug..."
               rows={1}
-              className="flex-1 bg-transparent border-none focus:ring-0 text-[13px] py-2.5 px-3 resize-none overflow-y-auto max-h-32 text-zinc-700 dark:text-zinc-200 placeholder:text-zinc-400 dark:placeholder:text-zinc-600 scrollbar-none"
+              className="flex-1 bg-transparent border-none focus:ring-0 focus:outline-none text-[14px] py-2 px-1.5 resize-none overflow-y-auto min-h-[40px] max-h-[200px] text-zinc-800 dark:text-zinc-200 placeholder:text-zinc-450 dark:placeholder:text-zinc-600 scrollbar-thin leading-relaxed"
             />
+
             <button
               onClick={() => !isLimitReached && handleSend()}
               disabled={!followUp.trim() || isStreaming || isLimitReached}
-              className={`p-2.5 mb-0.5 text-white rounded-xl transition-all shadow-lg active:scale-95 flex items-center justify-center shrink-0 ${
-                isLimitReached 
-                  ? "bg-rose-500/20 text-rose-500 cursor-not-allowed shadow-none" 
-                  : "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20 disabled:opacity-20"
+              data-tooltip={isLimitReached ? "Daily limit reached — resets at 12:30 PM IST" : "Send"}
+              className={`p-2 rounded-full transition-all shadow-sm active:scale-95 flex items-center justify-center shrink-0 border ${
+                isLimitReached
+                  ? "bg-rose-500/20 text-rose-500 border-rose-500/30 cursor-not-allowed shadow-none"
+                  : deepMode
+                    ? "bg-gradient-to-br from-amber-500 to-orange-600 text-white border-transparent hover:from-amber-400 hover:to-orange-500 disabled:opacity-20"
+                    : "bg-zinc-900 text-white dark:bg-white dark:text-zinc-950 hover:bg-zinc-800 dark:hover:bg-zinc-100 border-transparent disabled:opacity-20 disabled:cursor-default"
               }`}
             >
-              {isLimitReached ? <RotateCcw size={14} /> : <Send size={14} />}
+              {isLimitReached ? <RotateCcw size={14} /> : deepMode ? <Zap size={15} className="fill-white" /> : <Send size={15} />}
             </button>
+          </div>
+          <div className="flex items-center justify-center gap-2 text-[10px] text-zinc-400 dark:text-zinc-600 mt-2.5">
+            <span>Trace can make mistakes. Verify critical fixes.</span>
+            <span className="text-zinc-300 dark:text-zinc-700">·</span>
+            <a
+              href={MANISH_LABS_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-0.5 hover:text-zinc-600 dark:hover:text-zinc-400 transition-colors"
+            >
+              Manish Labs <ArrowUpRight size={10} className="opacity-60" />
+            </a>
+            {nearLimit && (
+              <span className={`font-semibold tabular-nums ${followUp.length >= MAX_INPUT_CHARS ? "text-rose-500" : "text-amber-500"}`}>
+                · {followUp.length}/{MAX_INPUT_CHARS}
+              </span>
+            )}
           </div>
         </div>
       </div>

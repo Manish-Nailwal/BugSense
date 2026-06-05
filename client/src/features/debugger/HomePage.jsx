@@ -1,117 +1,117 @@
 import React, { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import useDebugStore from "../../store/debugStore";
-import { Zap, Activity, ShieldCheck, Cpu, ArrowRight } from "lucide-react";
+import useAuthStore from "../../store/authStore";
+import { Sparkles, Zap, ArrowUpRight } from "lucide-react";
 import ErrorInput from "./ErrorInput";
+import ThemeToggle from "../../components/ui/ThemeToggle";
+import { MANISH_LABS_URL } from "../../config/links";
+
+const greetingFor = (hour) => {
+  if (hour < 5) return "Working late";
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+};
 
 const HomePage = () => {
   const navigate = useNavigate();
-  const { sessionId, messages, resetSession, setErrorInput } = useDebugStore();
+  const { sessionId, messages, resetSession, deepMode } = useDebugStore();
+  const { user } = useAuthStore();
 
   useEffect(() => {
-    if (sessionId || messages.length > 0) {
-      resetSession();
-    }
+    if (sessionId || messages.length > 0) resetSession();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (sessionId && messages.length > 0) {
-      navigate(`/c/${sessionId}`);
-    }
+    if (sessionId && messages.length > 0) navigate(`/c/${sessionId}`);
   }, [sessionId, messages, navigate]);
 
-  const sampleQueries = [
-    {
-      title: "React Property Error",
-      error: "TypeError: Cannot read properties of undefined (reading 'map')\n    at Dashboard.jsx:125:44\n    at renderWithHooks (react-dom.development.js:16305:18)\n    at updateFunctionComponent (react-dom.development.js:19588:15)"
-    },
-    {
-      title: "Reference Error",
-      error: "ReferenceError: client is not defined\n    at App.js:45:12\n    at dispatch (redux.js:234:10)\n    at onClick (NavBar.jsx:89:5)"
-    },
-    {
-      title: "Dependency Cycle",
-      error: "Dependency Cycle Detected:\n  context.js -> hooks.js -> services.js -> context.js\n  This may cause unexpected behavior and state synchronization issues."
-    },
-    {
-      title: "Auth Failure (401)",
-      error: "Uncaught (in promise) Error: Request failed with status code 401\n    at createError (axios.js:1022:15)\n    at settle (axios.js:1112:12)\n    at XMLHttpRequest.handleLoad (axios.js:1456:10)"
-    }
-  ];
+  const firstName = user?.displayName?.trim().split(" ")[0] || "there";
+  const greeting = greetingFor(new Date().getHours());
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-6 bg-white dark:bg-zinc-950 h-full overflow-hidden relative">
-      {/* Neural Background Elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[20%] left-[10%] w-[40%] h-[40%] bg-emerald-500/5 blur-[120px] rounded-full animate-pulse" />
+    <div className="flex-1 h-full overflow-y-auto scrollbar-none bg-zinc-50 dark:bg-[#09090b] relative">
+      {/* Ambient background: faint grid + accent glow */}
+      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:40px_40px] dark:bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_75%)]" />
         <div
-          className="absolute bottom-[20%] right-[10%] w-[40%] h-[40%] bg-blue-500/5 blur-[120px] rounded-full animate-pulse"
-          style={{ animationDelay: "1s" }}
+          className="absolute top-[18%] left-1/2 -translate-x-1/2 w-[520px] h-[520px] rounded-full blur-[130px] opacity-[0.10] dark:opacity-[0.16]"
+          style={{ background: "radial-gradient(circle, var(--accent) 0%, transparent 70%)" }}
         />
       </div>
 
-      <div className="z-10 w-full max-w-2xl flex flex-col items-center space-y-12">
-        {/* Hero Section */}
-        <div className="flex flex-col items-center text-center space-y-6">
-          <div className="relative group">
-            <div className="absolute -inset-2 bg-emerald-500/10 blur-xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
-            <div className="relative w-16 h-16 rounded-2xl bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform cursor-pointer">
-              <Zap size={28} className="text-emerald-500 fill-emerald-500/10" />
-            </div>
+      {/* Top-right controls */}
+      <div className="absolute top-4 right-4 sm:right-6 z-20 flex items-center gap-2">
+        <a
+          href={MANISH_LABS_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="group inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-zinc-200 dark:border-zinc-800 bg-white/60 dark:bg-zinc-900/50 backdrop-blur-sm text-[11px] font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:border-zinc-300 dark:hover:border-zinc-700 transition-all"
+        >
+          Manish Labs
+          <ArrowUpRight size={13} className="opacity-50 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
+        </a>
+        <ThemeToggle />
+      </div>
+
+      <div className="min-h-full flex flex-col items-center justify-center px-5 py-16">
+        <div className="w-full max-w-2xl flex flex-col items-center">
+
+          {/* Status pill */}
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-zinc-200/70 dark:border-zinc-800 bg-white/60 dark:bg-zinc-900/50 backdrop-blur-sm mb-7">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full rounded-full opacity-60 animate-ping" style={{ backgroundColor: "var(--accent)" }} />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full" style={{ backgroundColor: "var(--accent)" }} />
+            </span>
+            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+              Trace is ready
+            </span>
           </div>
-          <div className="space-y-2">
-            <h1 className="text-4xl md:text-5xl font-[1000] text-zinc-900 dark:text-white tracking-tight italic">
-              Solve faster.{" "}
-              <span className="text-zinc-400 dark:text-zinc-600">
-                Fix smarter.
-              </span>
+
+          {/* Greeting — muted + emphasis, monochrome to match the theme */}
+          <div className="text-center space-y-2.5 mb-9">
+            <h1 className="text-[1.6rem] md:text-[1.95rem] font-semibold tracking-tight leading-tight">
+              <span className="text-zinc-400 dark:text-zinc-500">{greeting}, </span>
+              <span className="text-zinc-900 dark:text-white">{firstName}</span>
             </h1>
-            <p className="text-[14px] font-medium text-zinc-500 max-w-md mx-auto">
-              Smart Debug AI trained on system logs and stack traces. Paste your error below to get started.
+            <p className="text-[13px] md:text-sm text-zinc-500 dark:text-zinc-400 max-w-md mx-auto leading-relaxed">
+              Paste an error, stack trace, or log below — I'll break down the{" "}
+              <span className="text-zinc-700 dark:text-zinc-200 font-medium">why</span> and guide you to the fix.
             </p>
           </div>
-        </div>
 
-        {/* Centerpiece: Input with Quickstarts */}
-        <div className="w-full space-y-6">
-          <ErrorInput />
-          
-          <div className="flex flex-wrap items-center justify-center gap-2">
-             <span className="w-full text-center text-[9px] font-black text-zinc-400 uppercase tracking-[0.3em] mb-2">Try pasting a sample:</span>
-             {sampleQueries.map((item, idx) => (
-               <button 
-                 key={idx}
-                 onClick={() => setErrorInput(item.error)}
-                 className="px-4 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-900/50 border border-zinc-200 dark:border-zinc-800 text-[10px] font-bold text-zinc-500 hover:text-emerald-500 hover:border-emerald-500/40 transition-all active:scale-95"
-               >
-                 {item.title}
-               </button>
-             ))}
+          {/* Composer */}
+          <div className="w-full">
+            <ErrorInput />
+            <div className="flex items-center justify-center gap-4 mt-3 text-[10px] font-medium text-zinc-400 dark:text-zinc-600">
+              <span className="inline-flex items-center gap-1.5">
+                <Sparkles size={11} /> Model auto-selected
+              </span>
+              <span className="w-1 h-1 rounded-full bg-zinc-300 dark:bg-zinc-700" />
+              <span className={`inline-flex items-center gap-1.5 ${deepMode ? "text-amber-500" : ""}`}>
+                <Zap size={11} className={deepMode ? "fill-current" : ""} />
+                {deepMode ? "Deep Mode on" : "Deep Mode in +"}
+              </span>
+            </div>
           </div>
-        </div>
 
-        {/* Simplified Status Indicators */}
-        <div className="flex flex-wrap items-center justify-center gap-10 pt-8 border-t border-zinc-100 dark:border-zinc-800/50 w-full max-w-lg">
-          <div className="flex items-center gap-2.5">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Live Help</span>
-          </div>
-          <div className="flex items-center gap-2.5">
-            <div className="w-2 h-2 rounded-full bg-blue-500" />
-            <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Private</span>
-          </div>
-          <div className="flex items-center gap-2.5">
-            <div className="w-2 h-2 rounded-full bg-purple-500" />
-            <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Smart Suggestions</span>
-          </div>
         </div>
       </div>
 
-      <div className="absolute bottom-10 flex flex-col items-center">
-        <p className="text-[9px] font-black text-zinc-300 dark:text-zinc-800 uppercase tracking-[0.3em] font-mono">
-          BUGSENSE SYSTEM v3.4.1
-        </p>
-      </div>
+      {/* Footer micro-label */}
+      <p className="absolute bottom-5 left-1/2 -translate-x-1/2 text-[9px] font-semibold text-zinc-400 dark:text-zinc-700 uppercase tracking-[0.3em] font-mono whitespace-nowrap">
+        Trace // by{" "}
+        <a
+          href={MANISH_LABS_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="hover:text-zinc-600 dark:hover:text-zinc-400 transition-colors"
+        >
+          Manish Labs
+        </a>
+      </p>
     </div>
   );
 };

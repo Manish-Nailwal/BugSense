@@ -53,7 +53,25 @@ const AnalyticsProfileSchema = new mongoose.Schema({
     content: String,
     model: String,
     generatedAt: Date
-  }
+  },
+  // AI-recommended tech stacks (from the latest report) mapped to official docs.
+  learningPaths: [
+    {
+      name: String,
+      url: String,
+      level: String
+    }
+  ],
+  // AI-identified skill gaps (from the latest report) + the official resource to fix each.
+  skillGaps: [
+    {
+      area: String,
+      reason: String,
+      name: String,
+      url: String,
+      level: String
+    }
+  ]
 }, { timestamps: true });
 
 const AnalyticsProfile = mongoose.model('AnalyticsProfile', AnalyticsProfileSchema);

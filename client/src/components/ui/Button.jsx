@@ -4,8 +4,9 @@ const Button = ({ children, onClick, type = 'button', variant = 'primary', class
   const baseStyles = "px-5 py-2.5 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed text-sm active:scale-[0.98]";
   
   const variants = {
-    primary: "bg-primary text-white hover:bg-primary-hover shadow-lg shadow-primary-glow dark:shadow-emerald-500/10 hover:shadow-emerald-500/20",
+    primary: "bg-indigo-600 dark:bg-violet-600 text-white hover:bg-indigo-700 dark:hover:bg-violet-500 shadow-md shadow-indigo-500/10 dark:shadow-violet-500/10",
     ghost: "bg-transparent border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-800/50",
+    outline: "bg-transparent border border-zinc-200 dark:border-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-50 dark:hover:bg-zinc-900/50",
     secondary: "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 hover:bg-zinc-200 dark:hover:bg-zinc-700",
     danger: "bg-rose-500/10 text-rose-500 border border-rose-500/20 hover:bg-rose-500 hover:text-white"
   };

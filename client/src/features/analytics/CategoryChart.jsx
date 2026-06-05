@@ -46,10 +46,10 @@ const CategoryChart = ({ data }) => {
           </Pie>
           
           {/* Custom Center Label */}
-          <text x="50%" y="48%" textAnchor="middle" dominantBaseline="middle" className="fill-zinc-900 dark:fill-white text-3xl font-black italic">
+          <text x="50%" y="47%" textAnchor="middle" dominantBaseline="middle" className="fill-zinc-900 dark:fill-white text-2xl font-bold tracking-tight">
             {total}
           </text>
-          <text x="50%" y="58%" textAnchor="middle" dominantBaseline="middle" className="fill-zinc-400 dark:fill-zinc-600 text-[10px] font-black uppercase tracking-[0.2em]">
+          <text x="50%" y="57%" textAnchor="middle" dominantBaseline="middle" className="fill-zinc-400 dark:fill-zinc-600 text-[10px] font-semibold uppercase tracking-wider">
             Total Fixes
           </text>
 

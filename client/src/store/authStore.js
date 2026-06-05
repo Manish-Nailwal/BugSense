@@ -65,7 +65,10 @@ const useAuthStore = create((set) => ({
       const { data } = await axios.get(`${API_URL}/api/auth/me`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      set({ user: data.data });
+      // Keep the locally stored token alongside the fresh profile data.
+      const merged = { ...data.data, token };
+      localStorage.setItem('user', JSON.stringify(merged));
+      set({ user: merged });
     } catch (error) {
       if (error.response?.status === 401) {
         localStorage.removeItem('token');
@@ -73,6 +76,18 @@ const useAuthStore = create((set) => ({
         set({ user: null, token: null });
       }
     }
+  },
+
+  // Update profile / personalization / preferences (and optionally password).
+  updateProfile: async (payload) => {
+    const token = localStorage.getItem('token');
+    const { data } = await axios.put(`${API_URL}/api/auth/me`, payload, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const merged = { ...data.data, token };
+    localStorage.setItem('user', JSON.stringify(merged));
+    set({ user: merged });
+    return merged;
   }
 }));
 

@@ -8,6 +8,13 @@ export default {
   theme: {
     extend: {
       colors: {
+        zinc: {
+          450: "#8e8e93",
+          550: "#61616a",
+          650: "#48484f",
+          850: "#202024",
+          955: "#0f0f11",
+        },
         cream: {
           primary: "#FDFCFB",
           secondary: "#F8F6F2",
@@ -47,8 +54,9 @@ export default {
         }
       },
       fontFamily: {
-        sans: ['Inter', 'sans-serif'],
-        mono: ['JetBrains Mono', 'monospace'],
+        // Geist family — matches Manish Labs. Clean and highly legible.
+        sans: ['Geist Sans', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+        mono: ['Geist Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
       boxShadow: {
         'glow': '0 0 20px rgba(16, 185, 129, 0.15)',

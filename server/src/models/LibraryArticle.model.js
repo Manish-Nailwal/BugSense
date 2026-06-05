@@ -28,10 +28,33 @@ const libraryArticleSchema = new mongoose.Schema({
   },
   tags: [String],
   errorSnippet: String,
+  // Author identity on the public blog: show real name or publish anonymously.
+  // Can be flipped by the author at any time from the workspace.
+  authorDisplay: {
+    type: String,
+    enum: ['name', 'anonymous'],
+    default: 'name',
+  },
   views: {
     type: Number,
     default: 0,
   },
+  likes: {
+    type: Number,
+    default: 0,
+  },
+  // Reader Q&A: a comment can be a question, or the author's reply to one
+  // (isAuthorReply + parentId form a simple thread). Wired for a future feature.
+  comments: [
+    {
+      userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      authorName: { type: String, default: 'Anonymous' },
+      text: { type: String, required: true },
+      isAuthorReply: { type: Boolean, default: false },
+      parentId: { type: mongoose.Schema.Types.ObjectId, default: null },
+      createdAt: { type: Date, default: Date.now },
+    },
+  ],
   isPublished: {
     type: Boolean,
     default: true,

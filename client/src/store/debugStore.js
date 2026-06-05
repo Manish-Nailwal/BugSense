@@ -13,15 +13,25 @@ const useDebugStore = create((set, get) => ({
   metadata: null,
   error: null,
   isConfirmModalOpen: false,
-  selectedModel: localStorage.getItem('lastModel') || 'Gemma 3 12B',
-  quotaCounts: { 'Gemini 3 Flash': 0, 'Gemini 2.5 Flash': 0, 'Gemma 3 4B': 0, 'Gemma 3 12B': 0 },
+  // The model is chosen server-side now. Users toggle Deep Mode (premium model,
+  // 1 request / user / day) instead of picking a model manually.
+  deepMode: false,
+  quota: {
+    normal: { used: 0, limit: 500, usable: 450, reserve: 50, available: true },
+    deep: {
+      userUsed: 0,
+      userLimit: 1,
+      remaining: 1,
+      globalUsed: 0,
+      globalLimit: 20,
+      available: true,
+    },
+  },
 
   setErrorInput: (val) => set({ errorInput: val }),
   setConfirmModalOpen: (isOpen) => set({ isConfirmModalOpen: isOpen }),
-  setSelectedModel: (model) => {
-    localStorage.setItem('lastModel', model);
-    set({ selectedModel: model });
-  },
+  setDeepMode: (val) => set({ deepMode: !!val }),
+  toggleDeepMode: () => set((state) => ({ deepMode: !state.deepMode })),
 
   fetchQuota: async () => {
     const token = localStorage.getItem('token');
@@ -30,7 +40,11 @@ const useDebugStore = create((set, get) => ({
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await response.json();
-      if (data.success) set({ quotaCounts: data.data });
+      if (data.success && data.data?.normal) {
+        set({ quota: data.data });
+        // If the user's deep allowance is gone, drop the toggle.
+        if (!data.data.deep?.available) set({ deepMode: false });
+      }
     } catch (err) {
       console.error('Failed to fetch quota:', err);
     }
@@ -103,20 +117,23 @@ const useDebugStore = create((set, get) => ({
     });
 
     try {
-      const { selectedModel } = get();
+      const { deepMode } = get();
       const response = await fetch(`${API_URL}/api/debug/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           errorLog: errorInput,
-          selectedModel 
+          deepMode
         })
       });
 
-      if (!response.ok) throw new Error('Failed to start analysis');
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody.message || 'Failed to start analysis');
+      }
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -170,7 +187,7 @@ const useDebugStore = create((set, get) => ({
 
 
   sendFollowUp: async (content) => {
-    const { messages, sessionId } = get();
+    const { sessionId } = get();
     const token = localStorage.getItem('token');
 
     set((state) => ({
@@ -181,24 +198,26 @@ const useDebugStore = create((set, get) => ({
     }));
 
     try {
-      const { selectedModel } = get();
-      // For now, we use the same prompt engineering but include history
-      // Note: Ideally the server handles the history context
+      const { deepMode } = get();
+      // The server rebuilds context from the DB (windowed turns + rolling
+      // summary), so we no longer ship the whole transcript on every turn.
       const response = await fetch(`${API_URL}/api/debug/analyze`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ 
-          errorLog: content, 
-          history: messages, // Send history for context
+        body: JSON.stringify({
+          errorLog: content,
           sessionId,
-          selectedModel 
+          deepMode
         })
       });
 
-      if (!response.ok) throw new Error('Failed to send follow-up');
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody.message || 'Failed to send follow-up');
+      }
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -258,6 +277,26 @@ const useDebugStore = create((set, get) => ({
     }
   },
 
+  deleteAllSessions: async () => {
+    const token = localStorage.getItem('token');
+    const { resetSession } = get();
+    try {
+      const response = await fetch(`${API_URL}/api/debug/sessions`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await response.json();
+      if (data.success) {
+        set({ pastSessions: [] });
+        resetSession();
+      }
+      return data;
+    } catch (err) {
+      console.error('Failed to delete all sessions:', err);
+      throw err;
+    }
+  },
+
   deleteSession: async (id) => {
     const token = localStorage.getItem('token');
     const { sessionId, resetSession } = get();
@@ -304,17 +343,17 @@ const useDebugStore = create((set, get) => ({
     }
   },
 
-  confirmFix: async (sessionId, userNote, shouldPublish) => {
+  confirmFix: async (sessionId, userNote, shouldPublish, authorDisplay) => {
     const token = localStorage.getItem('token');
-    const { selectedModel, fetchSessions, fetchQuota } = get();
+    const { fetchSessions, fetchQuota } = get();
     try {
       const response = await fetch(`${API_URL}/api/debug/sessions/${sessionId}/confirm`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json', 
-          'Authorization': `Bearer ${token}` 
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ userNote, shouldPublish, selectedModel })
+        body: JSON.stringify({ userNote, shouldPublish, ...(authorDisplay ? { authorDisplay } : {}) })
       });
       const data = await response.json();
       if (!data.success) throw new Error(data.message);

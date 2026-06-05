@@ -59,7 +59,7 @@ class ErrorBoundary extends React.Component {
             </div>
             
             <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pt-8">
-              BugSense Diagnostic Protection Active
+              Trace Diagnostic Protection Active
             </p>
           </div>
         </div>

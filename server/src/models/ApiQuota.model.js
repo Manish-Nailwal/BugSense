@@ -7,14 +7,14 @@ const apiQuotaSchema = new mongoose.Schema({
     unique: true,
     index: true,
   },
+  // Global per-model request counts for the day (shared free-tier pool).
+  // Keys are friendly model names with dots replaced by underscores.
   counts: {
     type: Map,
     of: Number,
     default: {
+      'Gemini 3 Flash Lite': 0,
       'Gemini 3 Flash': 0,
-      'Gemini 2_5 Flash': 0,
-      'Gemma 3 4B': 0,
-      'Gemma 3 12B': 0,
     },
   },
 }, { timestamps: true });

@@ -1,4 +1,5 @@
 import LibraryArticle from "../models/LibraryArticle.model.js";
+import DebugSession from "../models/DebugSession.model.js";
 
 export const getArticles = async (req, res, next) => {
   try {
@@ -61,7 +62,72 @@ export const getArticle = async (req, res, next) => {
       $inc: { views: 1 },
     }).exec();
 
-    res.json({ success: true, data: article });
+    // Respect anonymity: never leak the author's identity if they opted out.
+    const data = article.toObject();
+    if (data.authorDisplay === "anonymous") {
+      data.authorId = { displayName: "Anonymous" };
+    }
+
+    res.json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update an article the user authored (currently: blog identity)
+// @route   PATCH /api/library/:id
+// @access  Private
+export const updateArticle = async (req, res, next) => {
+  try {
+    const { authorDisplay } = req.body;
+    const article = await LibraryArticle.findById(req.params.id);
+
+    if (!article) {
+      return res.status(404).json({ success: false, message: "Article not found" });
+    }
+    if (article.authorId.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: "Not authorized to edit this article" });
+    }
+
+    if (["name", "anonymous"].includes(authorDisplay)) {
+      article.authorDisplay = authorDisplay;
+    }
+
+    await article.save();
+    res.json({ success: true, data: { _id: article._id, authorDisplay: article.authorDisplay } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Unpublish / delete an article the user authored
+// @route   DELETE /api/library/:id
+// @access  Private
+export const deleteArticle = async (req, res, next) => {
+  try {
+    const article = await LibraryArticle.findById(req.params.id);
+
+    if (!article) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Article not found" });
+    }
+
+    if (article.authorId.toString() !== req.user._id.toString()) {
+      return res
+        .status(403)
+        .json({ success: false, message: "Not authorized to remove this article" });
+    }
+
+    // Detach the link from any session so it can be re-published later.
+    await DebugSession.updateMany(
+      { articleId: article._id },
+      { $unset: { articleId: "" } },
+    );
+
+    await LibraryArticle.deleteOne({ _id: article._id });
+
+    res.json({ success: true, message: "Article unpublished" });
   } catch (error) {
     next(error);
   }

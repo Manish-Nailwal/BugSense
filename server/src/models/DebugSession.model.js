@@ -39,6 +39,10 @@ const debugSessionSchema = new mongoose.Schema({
     content: String,
     timestamp: { type: Date, default: Date.now }
   }],
+  // Rolling summary of older turns (prompt-size optimization for long chats).
+  // `summarizedTurns` = how many leading messages are already folded into it.
+  contextSummary: { type: String, default: '' },
+  summarizedTurns: { type: Number, default: 0 },
   metadata: {
     errorFingerprint: String, // For de-duplication or pattern matching
   },
